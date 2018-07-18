@@ -6,6 +6,7 @@ import os
 import fnmatch
 import tensorflow as tf
 
+# Number of classes : 13
 csv_subject_folder_names = ['1. Subject 1',
 							'2. Subject 2',
 							'3. Subject 3',
@@ -20,6 +21,7 @@ csv_subject_folder_names = ['1. Subject 1',
 							'12. Subject 12',
 							'13. Subject 13']
 
+# Number of classes : 13
 csv_subject_label_names = ['subject 1',
 						   'subject 2',
 						   'subject 3',
@@ -34,6 +36,7 @@ csv_subject_label_names = ['subject 1',
 						   'subject 12',
 						   'subject 13']
 
+# Number of classes : 32
 grasp_names = ['sphere 3 finger',
 			   'parallel extension',
 			   'large diameter',
@@ -68,23 +71,27 @@ grasp_names = ['sphere 3 finger',
 			   'palmar'
 			   ]
 
+# Number of classes : 3
 adl_names = ['cooking',
 			 'laundry',
 			 'housekeeping'
 			 ]
 
+# Number of classes : 4
 opptype_names = ['Pad',
 				 'Palm',
 				 'Side',
 				 'null',
 				 ]
 
+# Number of classes : 4
 pip_names = ['Power',
 			 'Precision',
 			 'Intermediate',
 			 'null'
 			 ]
 
+# Number of classes : 8
 virtual_fingers_names = ['2',
 						 '3',
 						 '2-3',
@@ -94,6 +101,7 @@ virtual_fingers_names = ['2',
 						 '3-5',
 						 'null']
 
+# Number of classes : 3
 thumb_names = ['Abd',
 			   'Add',
 			   'null'
@@ -109,6 +117,7 @@ class csv_loader(object):
 				 train_list=[0, 1, 2, 3, 4, 5, 6, 7, 8],
 				 val_list=[9],
 				 test_list=[10, 11, 12],
+	             label_order=None,
 				 batch_size=10,
 				 max_hue_delta=0.15,
 				 saturation_range=[0.5, 2.0],
@@ -126,6 +135,17 @@ class csv_loader(object):
 		self.pip_names = pip_names
 		self.virtual_fingers_names = virtual_fingers_names
 		self.thumb_names = thumb_names
+		self.classes_numbers = np.array([len(self.grasp_names),
+		                                 len(self.adl_names),
+		                                 len(self.opptype_names),
+		                                 len(self.pip_names),
+		                                 len(self.virtual_fingers_names),
+		                                 len(self.thumb_names)])
+
+		self.label_order = label_order
+
+		if self.label_order is not None:
+			self.classes_numbers = self.classes_numbers[self.label_order]
 
 		self.data_path = data_path
 		self.csv_filename = csv_filename
@@ -341,6 +361,9 @@ class csv_loader(object):
 		label_raw = self.find_label_from_filename(current_image_name)
 		label = np.int64(self.get_label_indexes(label_raw[0]))
 
+		if self.label_order is not None:
+			label = label[self.label_order]
+
 		img = np.float32(cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))) / 255.0
 
 		return img, label
@@ -358,6 +381,9 @@ class csv_loader(object):
 		label_raw = self.find_label_from_filename(current_image_name)
 		label = np.int64(self.get_label_indexes(label_raw[0]))
 
+		if self.label_order is not None:
+			label = label[self.label_order]
+
 		img = np.float32(cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))) / 255.0
 
 		return img, label
@@ -374,6 +400,9 @@ class csv_loader(object):
 
 		label_raw = self.find_label_from_filename(current_image_name)
 		label = np.int64(self.get_label_indexes(label_raw[0]))
+
+		if self.label_order is not None:
+			label = label[self.label_order]
 
 		img = np.float32(cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))) / 255.0
 
@@ -440,7 +469,16 @@ class csv_loader(object):
 			test_set = test_set.batch(self.batch_size)
 
 		with tf.name_scope('dataset_initializer'):
-			iterator = tf.data.Iterator.from_structure(train_set.output_types, train_set.output_shapes)
+			# iterator = tf.data.Iterator.from_structure(train_set.output_types, train_set.output_shapes)
+			iterator = tf.data.Iterator.from_structure(train_set.output_types,
+			                                           (tf.TensorShape([self.batch_size,
+			                                                            self.resize_image_size[0],
+			                                                            self.resize_image_size[1],
+			                                                            3]),
+			                                            tf.TensorShape([self.batch_size,
+			                                                            len(self.classes_numbers)])
+			                                            )
+			                                           )
 			next_element = iterator.get_next()
 
 			training_init_op = iterator.make_initializer(train_set, name='train_set_initializer')

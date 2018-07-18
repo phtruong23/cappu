@@ -3,6 +3,12 @@ import Grasp_csv_Loader
 import numpy as np
 import tensorflow as tf
 
+import taxonomy_model
+import network_utils
+
+import os
+import datetime
+
 csv_path = '../Gopro'
 # csv_path = '..\\grasp_dataset\\Xsens'
 
@@ -10,9 +16,12 @@ csv_filename = 'SDATA1700291_annotated_data.csv'
 
 save_folder = 'save_frames'
 
+label_order = [5, 3, 2, 4, 0]
+
 grasp_loader = Grasp_csv_Loader.csv_loader(data_path=csv_path,
 										   csv_filename=csv_filename,
-										   save_folder=save_folder)
+										   save_folder=save_folder,
+                                           label_order=label_order)
 
 # print(len(grasp_loader.all_annotations))
 
