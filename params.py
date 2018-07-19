@@ -26,7 +26,7 @@ class PARAMS(object):
 
 	# define all required parameters here
 	image_size = [224, 224]
-	batch_size = 2
+	batch_size = 30
 	epochs = 30
 	learning_rate = 0.001
 	learning_rate_decay_factor = 0.94

@@ -13,7 +13,9 @@ from params import PARAMS
 # In this time, don't care about ADL.
 # Thumb -> PIP -> OppType -> VirtualFingers -> Grasp
 # So, need to change the order of labels
-label_order = [5, 3, 2, 4, 0]
+# Memory lacked. So, skip the thumb
+# label_order = [5, 3, 2, 4, 0]
+label_order = [3, 2, 4, 0]
 
 
 def train():
@@ -55,7 +57,7 @@ def train():
 	                                      learning_rate=PARAMS.learning_rate,
 	                                      num_samples=len(grasp_loader.train_meaningful_jpg_names),
 	                                      beta=PARAMS.beta,
-	                                      taxonomy_weights=[1.0, 1.0, 1.0, 1.0, 1.0],
+	                                      taxonomy_weights=[1.0, 1.0, 1.0, 1.0],
 	                                      all_label=None,
 	                                      all_value=None,
 	                                      batch_weight_range=[1.0, 1.0],
@@ -80,16 +82,16 @@ def train():
 	with tf.Session(config=config) as sess:
 
 		now = datetime.datetime.now()
-		# folder_log = './' + 'train_%s_%s_%s_%s_%s' % (now.year, now.month, now.day, now.hour, now.minute)
-		folder_log = '.\\' + 'train_%s_%s_%s_%s_%s' % (now.year, now.month, now.day, now.hour, now.minute)
+		folder_log = './' + 'train_%s_%s_%s_%s_%s' % (now.year, now.month, now.day, now.hour, now.minute)
+		# folder_log = '.\\' + 'train_%s_%s_%s_%s_%s' % (now.year, now.month, now.day, now.hour, now.minute)
 		print('folder_log: ', folder_log)
 		if not os.path.exists(folder_log):
 			os.makedirs(folder_log)
 
 		# For windows
-		os.system('copy .\\*.py %s' % (folder_log))
+		# os.system('copy .\\*.py %s' % (folder_log))
 		# For Linux
-		# os.system('cp ./*.py %s' % (folder_log))
+		os.system('cp ./*.py %s' % (folder_log))
 
 		# remember to intiate both global and local variables for training and evaluation
 		sess.run([tf.global_variables_initializer(), tf.local_variables_initializer()])
@@ -120,7 +122,8 @@ def train():
 							model.vgg19_training_flag: True,
 							model.vgg_dropout: 0.5})
 					# print(len(update['all_inputs']), len(update['all_outputs']))
-					print('losses:', update['losses'], 'accuracy:', update['eval_update']['Accuracy'])
+					# print('losses:', update['losses'], 'accuracy:', update['eval_update']['Accuracy'])
+					print('losses:', update['losses'])
 
 					summary_writer.add_summary(update['summary'], total_step_num)
 					summary_writer.flush()

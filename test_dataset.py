@@ -34,10 +34,13 @@ print(len(grasp_loader.train_meaningful_jpg_names),
 # print(np.shape(temp_image), np.shape(temp_label))
 # print(temp_label)
 
+# grasp_loader.read_frames_and_save_from_mp4(None, 6, 'subject_7_gopro_seg_1.mp4')
+
 # random = np.random.permutation(499757)
 # for i in range(0, 499757):
-# 	print(random[i])
-# 	grasp_loader._read_per_image_train(random[i])
+# 	print(grasp_loader.train_meaningful_jpg_names[random[i]])
+# 	temp_img, temp_label = grasp_loader._read_per_image_train(random[i])
+# 	print(np.shape(temp_img), np.shape(temp_label))
 
 
 next_element, training_init_op, validation_init_op, test_init_op = \

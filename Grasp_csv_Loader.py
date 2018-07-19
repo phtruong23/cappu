@@ -226,11 +226,10 @@ class csv_loader(object):
 												  self.csv_subject_folder_names[subject_num],
 												  mp4_name))
 		for i, im in enumerate(reader):
-			print('processing... : %d, %s, %d'% (subject_num, mp4_name, i))
+			print('processing... : %d, %s, %d'% (subject_num, mp4_name, i + 1))
 			save_filename = '%s.%s.%d.jpg' % (self.csv_subject_label_names[subject_num],
-											  mp4_name, i)
+											  mp4_name, i + 1)
 			imageio.imwrite('%s/%s' % (save_path, save_filename), im)
-			# print(self.find_label_from_filename(save_filename))
 
 	def total_save_from_mp4(self):
 		save_path = '%s/%s' % (self.data_path, self.save_folder)
@@ -263,11 +262,11 @@ class csv_loader(object):
 
 	def read_jpg_files_according_subject_and_frames(self, each_row):
 		# Assume that the all images has (1280 x 720 - w x h)
-		sequence_frames = np.zeros(shape=(len(range(each_row['StartFrame'], each_row['EndFrame'] + 1)),
+		sequence_frames = np.zeros(shape=(len(range(each_row['StartFrame'], each_row['EndFrame'])),
 										  720, 1280, 3),
 								   dtype=np.float32)
 		movie_name = each_row['Video'].split('.')[0]
-		for i in range(int(each_row['StartFrame']), int(each_row['EndFrame']) + 1):
+		for i in range(int(each_row['StartFrame']), int(each_row['EndFrame'])):
 			each_filename = ('%s/%s/%s.%s.mp4.%d.jpg' % (self.data_path,
 														 self.save_folder,
 														 each_row['Subject'],
@@ -296,7 +295,7 @@ class csv_loader(object):
 												   row['Video'].split('.')[0],
 												   i))
 							for row in self.all_annotations
-							for i in range(int(row['StartFrame']), int(row['EndFrame']) + 1)
+							for i in range(int(row['StartFrame']), int(row['EndFrame']))
 							]
 		return meaningful_names
 
@@ -308,7 +307,7 @@ class csv_loader(object):
 														 i))
 								  for row in self.all_annotations
 								  for sub_num in train_sub_list
-								  for i in range(int(row['StartFrame']), int(row['EndFrame']) + 1)
+								  for i in range(int(row['StartFrame']), int(row['EndFrame']))
 								  if self.csv_subject_label_names[sub_num] == row['Subject']
 								  ]
 
@@ -317,7 +316,7 @@ class csv_loader(object):
 														 i))
 								  for row in self.all_annotations
 								  for sub_num in val_sub_list
-								  for i in range(int(row['StartFrame']), int(row['EndFrame']) + 1)
+								  for i in range(int(row['StartFrame']), int(row['EndFrame']))
 								  if self.csv_subject_label_names[sub_num] == row['Subject']
 								  ]
 
@@ -326,7 +325,7 @@ class csv_loader(object):
 														 i))
 								  for row in self.all_annotations
 								  for sub_num in test_sub_list
-								  for i in range(int(row['StartFrame']), int(row['EndFrame']) + 1)
+								  for i in range(int(row['StartFrame']), int(row['EndFrame']))
 								  if self.csv_subject_label_names[sub_num] == row['Subject']
 								  ]
 
@@ -364,7 +363,9 @@ class csv_loader(object):
 		if self.label_order is not None:
 			label = label[self.label_order]
 
-		img = np.float32(cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))) / 255.0
+		img = imageio.imread(filename)
+		img = cv2.resize(img, tuple(self.resize_image_size))
+		img = np.float32(img) / 255.0
 
 		return img, label
 
