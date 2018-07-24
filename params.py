@@ -1,6 +1,6 @@
 class PARAMS(object):
 	# define all paths here
-	csv_path = '../Gopro'
+	csv_path = '/media/a307/EXPERIMENT/Grasping/Dataset/Gopro'
 	csv_filename = 'SDATA1700291_annotated_data.csv'
 	save_folder = 'save_frames'
 
@@ -13,8 +13,8 @@ class PARAMS(object):
 	max_bright_delta = 0.25
 	max_contrast_delta = [0, 0.3]
 
-	resnet_version = 152
-	resnet_path = ('./resnet_v2_%d_pretrained/resnet_v2_%d.ckpt') % (resnet_version, resnet_version)
+	resnet_version = 50
+	resnet_path = ('/media/a307/EXPERIMENT/iNaturalist/code/HL4/resnet_v2_%d_pretrained/resnet_v2_%d.ckpt') % (resnet_version, resnet_version)
 	resnet_exclude = ''
 	trainable_scopes = 'stage_0,stage_1,stage_2,stage_3,stage_4,stage_5'
 	ignore_missing_vars = True
@@ -26,14 +26,14 @@ class PARAMS(object):
 
 	# define all required parameters here
 	image_size = [224, 224]
-	batch_size = 30
+	batch_size = 100
 	epochs = 30
 	learning_rate = 0.001
 	learning_rate_decay_factor = 0.94
 	beta = 0.0002
 	epoch_decay = 4
 	weight_decay = 1e-4
-	print_freq = 10
+	print_freq = 20
 
 	thread = 8
-	gpu_num = '0'
+	gpu_num = '1'

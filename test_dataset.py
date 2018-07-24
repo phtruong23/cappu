@@ -9,7 +9,7 @@ import network_utils
 import os
 import datetime
 
-csv_path = '../Gopro'
+csv_path = '/media/a307/EXPERIMENT/Grasping/Dataset/Gopro'
 # csv_path = '..\\grasp_dataset\\Xsens'
 
 csv_filename = 'SDATA1700291_annotated_data.csv'
@@ -21,7 +21,8 @@ label_order = [5, 3, 2, 4, 0]
 grasp_loader = Grasp_csv_Loader.csv_loader(data_path=csv_path,
 										   csv_filename=csv_filename,
 										   save_folder=save_folder,
-                                           label_order=label_order)
+                                           label_order=label_order,
+										   batch_size=500)
 
 # print(len(grasp_loader.all_annotations))
 
@@ -43,47 +44,47 @@ print(len(grasp_loader.train_meaningful_jpg_names),
 # 	print(np.shape(temp_img), np.shape(temp_label))
 
 
-next_element, training_init_op, validation_init_op, test_init_op = \
-	grasp_loader.initialization_dataset()
-
-batch_image, batch_label = next_element
-
-config = tf.ConfigProto()
-config.gpu_options.per_process_gpu_memory_fraction = 0.5
-config.gpu_options.allow_growth = True
-config.allow_soft_placement = True
-config.gpu_options.visible_device_list = '0'
-
-with tf.Session(config=config) as sess:
-	sess.run(training_init_op)
-
-	while True:
-
-		try:
-			update = sess.run({'batch_image': batch_image, 'batch_label': batch_label})
-			print('training... : ', np.shape(update['batch_image']), np.shape(update['batch_label']))
-		except tf.errors.OutOfRangeError:
-			break
-
-	sess.run(validation_init_op)
-
-	while True:
-
-		try:
-			update = sess.run({'batch_image': batch_image, 'batch_label': batch_label})
-			print('validating... : ', np.shape(update['batch_image']), np.shape(update['batch_label']))
-		except tf.errors.OutOfRangeError:
-			break
-
-	sess.run(test_init_op)
-
-	while True:
-
-		try:
-			update = sess.run({'batch_image': batch_image, 'batch_label': batch_label})
-			print('testing... : ', np.shape(update['batch_image']), np.shape(update['batch_label']))
-		except tf.errors.OutOfRangeError:
-			break
+# next_element, training_init_op, validation_init_op, test_init_op = \
+# 	grasp_loader.initialization_dataset()
+#
+# batch_image, batch_label = next_element
+#
+# config = tf.ConfigProto()
+# config.gpu_options.per_process_gpu_memory_fraction = 0.5
+# config.gpu_options.allow_growth = True
+# config.allow_soft_placement = True
+# config.gpu_options.visible_device_list = '0'
+#
+# with tf.Session(config=config) as sess:
+# 	sess.run(training_init_op)
+#
+# 	while True:
+#
+# 		try:
+# 			update = sess.run({'batch_image': batch_image, 'batch_label': batch_label})
+# 			print('training... : ', np.shape(update['batch_image']), np.shape(update['batch_label']))
+# 		except tf.errors.OutOfRangeError:
+# 			break
+#
+# 	sess.run(validation_init_op)
+#
+# 	while True:
+#
+# 		try:
+# 			update = sess.run({'batch_image': batch_image, 'batch_label': batch_label})
+# 			print('validating... : ', np.shape(update['batch_image']), np.shape(update['batch_label']))
+# 		except tf.errors.OutOfRangeError:
+# 			break
+#
+# 	sess.run(test_init_op)
+#
+# 	while True:
+#
+# 		try:
+# 			update = sess.run({'batch_image': batch_image, 'batch_label': batch_label})
+# 			print('testing... : ', np.shape(update['batch_image']), np.shape(update['batch_label']))
+# 		except tf.errors.OutOfRangeError:
+# 			break
 
 
 
