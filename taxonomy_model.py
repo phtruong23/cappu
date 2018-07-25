@@ -100,8 +100,6 @@ class taxonomy_model(object):
 				                                                                      reuse=None,
 				                                                                      scope='resnet_v2_152',
 				                                                                      include_root_block=True)
-		else:
-			raise ValueError('select a correct version of resnet (50, 101 or 152')
 
 		if self.is_mode == 'train':
 			resnet_restore = network_utils._get_init_fn(self.resnet_pretrained_path, '',
@@ -115,7 +113,7 @@ class taxonomy_model(object):
 		with slim.arg_scope(partial_vgg.vgg_arg_scope()):
 			vgg19_partial = partial_vgg.vgg_partial(inputs=input,
 			                                        num_classes=None,
-			                                        is_training=self.vgg19_training_flag, #True,
+			                                        is_training=True,
 			                                        dropout_keep_prob=self.vgg_dropout,
 			                                        spatial_squeeze=True,
 			                                        scope=scope,
@@ -279,7 +277,6 @@ class taxonomy_model(object):
 						                          self.stage_outputs[i][('stage_%d/fc8/squeezed') % i])
 					else:
 						inout_logit = self.stage_outputs[i][('stage_%d/fc8/squeezed') % i]
-
 					net_losses['stage_%d' % i] = tf.losses.sparse_softmax_cross_entropy(
 						labels=self.true_labels[:, i],
 						logits=inout_logit,
@@ -299,11 +296,10 @@ class taxonomy_model(object):
 		else:
 			net_losses = {}
 			with tf.variable_scope('losses'):
-				layer = int(self.taxonomy_nums-1)
 				net_losses['all'] = tf.losses.sparse_softmax_cross_entropy(
 					labels=tf.squeeze(self.true_labels),
-					logits=self.stage_outputs[layer][('stage_%d/fc8/squeezed') % layer],
-					weights=loss_weights, scope='loss_%s' % layer)
+					logits=self.stage_outputs[3][('stage_%d/fc8/squeezed') % 3],
+					weights=loss_weights, scope='loss_%s' % 3)
 
 		return net_losses
 

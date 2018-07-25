@@ -15,8 +15,7 @@ from params import PARAMS
 # So, need to change the order of labels
 # Memory lacked. So, skip the thumb
 # label_order = [5, 3, 2, 4, 0]
-# label_order = [3, 2, 4, 0]
-label_order = [0]
+label_order = [3, 2, 4, 0]
 
 
 def train():

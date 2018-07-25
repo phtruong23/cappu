@@ -307,7 +307,7 @@ class csv_loader(object):
 														 i))
 								  for row in self.all_annotations
 								  for sub_num in train_sub_list
-								  for i in range(int(row['StartFrame']), int(row['EndFrame'])-1)
+								  for i in range(int(row['StartFrame']), int(row['EndFrame']))
 								  if self.csv_subject_label_names[sub_num] == row['Subject']
 								  ]
 
@@ -365,7 +365,7 @@ class csv_loader(object):
 
 		img = imageio.imread(filename)
 		img = cv2.resize(img, tuple(self.resize_image_size))
-		img = img.astype(np.float32) / 255.0
+		img = np.float32(img) / 255.0
 
 		return img, label
 
@@ -385,8 +385,7 @@ class csv_loader(object):
 		if self.label_order is not None:
 			label = label[self.label_order]
 
-		img = cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))
-		img = img.astype(np.float32) / 255.0
+		img = np.float32(cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))) / 255.0
 
 		return img, label
 
@@ -406,8 +405,7 @@ class csv_loader(object):
 		if self.label_order is not None:
 			label = label[self.label_order]
 
-		img = cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))
-		img = img.astype(np.float32) / 255.0
+		img = np.float32(cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))) / 255.0
 
 		return img, label
 
@@ -448,38 +446,37 @@ class csv_loader(object):
 			train_set = train_set.map(self._adjust_tf_image_function)
 
 			train_set = train_set.batch(self.batch_size)
-			# train_set = train_set.apply(tf.contrib.data.batch_and_drop_remainder(self.batch_size))
 
 		with tf.name_scope('validation_dataset'):
 			val_size = len(self.val_meaningful_jpg_names)
 			## Validation set don't need shuffle.
-			val_order = tf.linspace(0.0, (float(val_size) - 1.0), val_size)#tf.cast(val_size, tf.float32)
+			val_order = tf.linspace(tf.cast(val_size, tf.float32), (float(val_size) - 1.0), val_size)
 
 			val_set = tf.data.Dataset.from_tensor_slices(val_order)
 			val_set = val_set.map(lambda num: tuple(
-				tf.py_func(self._read_per_image_val, [num], [tf.float32, tf.int64])))
+				tf.py_func(self._read_per_image_val, [num, 'val'], [tf.float32, tf.int64])))
 
 			val_set = val_set.batch(self.batch_size)
 
 		with tf.name_scope('test_dataset'):
 			test_size = len(self.test_meaningful_jpg_names)
 			## Test set don't need shuffle.
-			test_order = tf.linspace(0.0, (float(test_size) - 1.0), test_size)#tf.cast(test_size, tf.float32)
+			test_order = tf.linspace(tf.cast(test_size, tf.float32), (float(test_size) - 1.0), test_size)
 
 			test_set = tf.data.Dataset.from_tensor_slices(test_order)
 			test_set = test_set.map(lambda num: tuple(
-				tf.py_func(self._read_per_image_test, [num], [tf.float32, tf.int64])))
+				tf.py_func(self._read_per_image_test, [num, 'test'], [tf.float32, tf.int64])))
 
 			test_set = test_set.batch(self.batch_size)
 
 		with tf.name_scope('dataset_initializer'):
 			# iterator = tf.data.Iterator.from_structure(train_set.output_types, train_set.output_shapes)
 			iterator = tf.data.Iterator.from_structure(train_set.output_types,
-			                                           (tf.TensorShape([None,
+			                                           (tf.TensorShape([self.batch_size,
 			                                                            self.resize_image_size[0],
 			                                                            self.resize_image_size[1],
 			                                                            3]),
-			                                            tf.TensorShape([None,
+			                                            tf.TensorShape([self.batch_size,
 			                                                            len(self.classes_numbers)])
 			                                            )
 			                                           )

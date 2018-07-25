@@ -1,7 +1,6 @@
 import numpy as np
 import tensorflow as tf
 import cv2
-import datetime
 import VideoLoader
 
 
@@ -13,7 +12,7 @@ def main():
     train_generator = train_dataset.initialization()
 
     with tf.name_scope('data_generator'):
-        iterator = tf.data.Iterator.from_structure(train_generator.output_types, 
+        iterator = tf.data.Iterator.from_structure(train_generator.output_types,
                                                    (tf.TensorShape([train_dataset.batch_size,
                                                                     train_dataset.img_size[0],
                                                                     train_dataset.img_size[1],

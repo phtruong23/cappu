@@ -6,11 +6,11 @@ class VideoLoader(object):
     """
         This class loads all frames of all video batch into an array
     """
-    def __init__(self, filenames, labels, batch_size, img_size=None, crop_height=None, shuffle=True, is_mode='train'):
+    def __init__(self, filenames, labels, batch_size, input_size=None, crop_height=None, shuffle=True, is_mode='train'):
 
         self.filenames = filenames
         self.labels = labels
-        self.img_size = img_size if img_size is not None else [320, 480]
+        self.input_size = input_size if input_size is not None else [320, 480]
         self.batch_size = batch_size
         self.num_samples = len(self.filenames)
 
@@ -65,7 +65,7 @@ class VideoLoader(object):
         image = tf.image.random_saturation(image, self.saturation1, self.saturation2)
         image = tf.image.random_hue(image, self.hue)
         image = tf.image.central_crop(image, self.central_ratio)
-        image = tf.image.resize_images(image, self.img_size)
+        image = tf.image.resize_images(image, self.input_size)
 
         return tf.clip_by_value(image, 0.0, 1.0), labels
 
