@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import os
+import csv
 import datetime
 import taxonomy_model
 
@@ -15,7 +16,8 @@ from params import PARAMS
 # So, need to change the order of labels
 # Memory lacked. So, skip the thumb
 # label_order = [5, 3, 2, 4, 0]
-label_order = [3, 2, 4, 0]
+# label_order = [3, 2, 4, 0]
+label_order = [0]
 
 
 def train():
@@ -46,7 +48,7 @@ def train():
 	                                      true_labels=batch_label,
 	                                      input_size=PARAMS.image_size,
 	                                      batch_size=PARAMS.batch_size,
-	                                      taxonomy_nums=len(grasp_loader.classes_numbers),
+	                                      taxonomy_nums=len(grasp_loader.label_order), #len(grasp_loader.classes_numbers),
 	                                      taxonomy_classes=grasp_loader.classes_numbers,
 	                                      resnet_version=PARAMS.resnet_version,
 	                                      resnet_pretrained_path=PARAMS.resnet_path,
@@ -86,12 +88,12 @@ def train():
 		# folder_log = '.\\' + 'train_%s_%s_%s_%s_%s' % (now.year, now.month, now.day, now.hour, now.minute)
 		print('folder_log: ', folder_log)
 		if not os.path.exists(folder_log):
-			os.makedirs(folder_log)
+			os.makedirs(folder_log + '/code')
 
 		# For windows
 		# os.system('copy .\\*.py %s' % (folder_log))
 		# For Linux
-		os.system('cp ./*.py %s' % (folder_log))
+		os.system('cp ./*.py %s/code' % (folder_log))
 
 		# remember to intiate both global and local variables for training and evaluation
 		sess.run([tf.global_variables_initializer(), tf.local_variables_initializer()])
@@ -101,6 +103,7 @@ def train():
 
 		summary_writer = tf.summary.FileWriter('%s' % (folder_log), sess.graph)
 		total_step_num = 0
+		best_acc = 0.0
 
 		for epoch in range(PARAMS.epochs):
 
@@ -118,12 +121,14 @@ def train():
 						feed_dict={
 							# inputs: images,
 							# 	true_labels: labels[:,int(-args.layer):],
-							model.resnet_training_flag: False,
-							model.vgg19_training_flag: True,
+							model.resnet_training_flag: True,
+							model.vgg19_training_flag: False,
 							model.vgg_dropout: 0.5})
-					# print(len(update['all_inputs']), len(update['all_outputs']))
-					# print('losses:', update['losses'], 'accuracy:', update['eval_update']['Accuracy'])
-					print('losses:', update['losses'])
+
+					if total_step_num % PARAMS.print_freq==0:
+						# print(len(update['all_inputs']), len(update['all_outputs']))
+						print('step:', total_step_num, 'losses:', update['losses'], 'accuracy:', update['eval_update']['Accuracy_top1'])
+						# print('losses:', update['losses'])
 
 					summary_writer.add_summary(update['summary'], total_step_num)
 					summary_writer.flush()
@@ -140,8 +145,54 @@ def train():
 			# reset all local variabels so that the streaming metrics reset new calculation
 			sess.run(eval_reset)
 
+			# Validate the model with val_dataset
+			# initiate the batch extraction using tf.data.Dataset
+			sess.run(validation_init_op)
+
+			while (True):
+				try:
+					# extract batch and training
+					update = sess.run({'all_inputs': all_inputs, 'all_outputs': end_point,
+									   'losses': losses, 'eval_update': eval_update
+									   },
+									  feed_dict={
+										  # inputs: images,
+										  # 	true_labels: labels[:,int(-args.layer):],
+										  model.resnet_training_flag: False,
+										  model.vgg19_training_flag: False,
+										  model.vgg_dropout: 1.0})
+
+				except tf.errors.OutOfRangeError:
+					break
+
+			val_metrics = sess.run(eval_value)
+
+			print({name: val_metrics[name]['stage_0'] for name in val_metrics.keys()})
+
+			# convert result in to np array and save to file
+			val_metrics_arr = [ [name] + [val_metrics[name][stage] for stage in val_metrics[name].keys()]
+							   for name in val_metrics.keys()]
+			metric_names = list(val_metrics.keys())
+			stages = ['Metrics'] + list(val_metrics[metric_names[0]].keys())
+			val_metrics_arr = [stages] + val_metrics_arr
+
+			with open(folder_log + '/val_evaluation.csv', "a") as output:
+				writer = csv.writer(output, lineterminator='\n')
+				writer.writerows([['Epoch %s'% epoch]])
+				writer.writerows(val_metrics_arr)
+
+			# reset all local variabels so that the streaming metrics reset new calculation
+			sess.run(eval_reset)
+
+			if val_metrics['Accuracy_top1']['stage_%s'%(len(grasp_loader.label_order)-1)] > best_acc:
+				best_acc = val_metrics['Accuracy_top1']['stage_%s'%(len(grasp_loader.label_order)-1)]
+				# save trained model
+				checkpoint_file = os.path.join(folder_log, 'BestGraspResnet152.ckpt')
+				saver.save(sess, checkpoint_file)
+
+			# save model after each epoch
 			checkpoint_file = os.path.join(folder_log, 'Grasp.ckpt')
-			saver.save(sess, checkpoint_file, global_step=epoch)
+			saver.save(sess, checkpoint_file)
 
 
 if __name__ == '__main__':
