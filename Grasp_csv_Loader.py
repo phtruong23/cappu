@@ -6,6 +6,7 @@ import os
 import fnmatch
 import tensorflow as tf
 
+# Number of classes : 13
 csv_subject_folder_names = ['1. Subject 1',
 							'2. Subject 2',
 							'3. Subject 3',
@@ -20,6 +21,7 @@ csv_subject_folder_names = ['1. Subject 1',
 							'12. Subject 12',
 							'13. Subject 13']
 
+# Number of classes : 13
 csv_subject_label_names = ['subject 1',
 						   'subject 2',
 						   'subject 3',
@@ -34,6 +36,7 @@ csv_subject_label_names = ['subject 1',
 						   'subject 12',
 						   'subject 13']
 
+# Number of classes : 32
 grasp_names = ['sphere 3 finger',
 			   'parallel extension',
 			   'large diameter',
@@ -68,23 +71,27 @@ grasp_names = ['sphere 3 finger',
 			   'palmar'
 			   ]
 
+# Number of classes : 3
 adl_names = ['cooking',
 			 'laundry',
 			 'housekeeping'
 			 ]
 
+# Number of classes : 4
 opptype_names = ['Pad',
 				 'Palm',
 				 'Side',
 				 'null',
 				 ]
 
+# Number of classes : 4
 pip_names = ['Power',
 			 'Precision',
 			 'Intermediate',
 			 'null'
 			 ]
 
+# Number of classes : 8
 virtual_fingers_names = ['2',
 						 '3',
 						 '2-3',
@@ -94,6 +101,7 @@ virtual_fingers_names = ['2',
 						 '3-5',
 						 'null']
 
+# Number of classes : 3
 thumb_names = ['Abd',
 			   'Add',
 			   'null'
@@ -109,11 +117,12 @@ class csv_loader(object):
 				 train_list=[0, 1, 2, 3, 4, 5, 6, 7, 8],
 				 val_list=[9],
 				 test_list=[10, 11, 12],
+	             label_order=None,
 				 batch_size=10,
-				 max_hue_delta=0.15,
-				 saturation_range=[0.5, 2.0],
-				 max_bright_delta=0.25,
-				 max_contrast_delta=[0, 0.3],
+				 max_hue_delta=None,
+				 saturation_range=None,
+				 max_bright_delta=None,
+				 max_contrast_delta=None,
 				 is_training=True
 				 ):
 		self.csv_subject_folder_names = csv_subject_folder_names
@@ -126,6 +135,17 @@ class csv_loader(object):
 		self.pip_names = pip_names
 		self.virtual_fingers_names = virtual_fingers_names
 		self.thumb_names = thumb_names
+		self.classes_numbers = np.array([len(self.grasp_names),
+		                                 len(self.adl_names),
+		                                 len(self.opptype_names),
+		                                 len(self.pip_names),
+		                                 len(self.virtual_fingers_names),
+		                                 len(self.thumb_names)])
+
+		self.label_order = label_order
+
+		if self.label_order is not None:
+			self.classes_numbers = self.classes_numbers[self.label_order]
 
 		self.data_path = data_path
 		self.csv_filename = csv_filename
@@ -136,11 +156,13 @@ class csv_loader(object):
 		self.test_list = test_list
 
 		self.batch_size = batch_size
-		self.max_hue_delta = max_hue_delta
-		self.saturation_range = saturation_range
-		self.max_bright_delta = max_bright_delta
-		self.max_contrast_delta = max_contrast_delta
+
+		self.max_hue_delta = max_hue_delta if max_hue_delta is not None else 0.15
+		self.saturation_range = saturation_range if saturation_range is not None else [0.5, 2.0]
+		self.max_bright_delta = max_bright_delta if max_bright_delta is not None else 0.25
+		self.max_contrast_delta = max_contrast_delta if max_contrast_delta is not None else [0, 0.3]
 		self.is_training = is_training
+		self.do_preprocessing = True
 
 		self.all_annotations = self.get_all_annotations()
 
@@ -206,11 +228,11 @@ class csv_loader(object):
 												  self.csv_subject_folder_names[subject_num],
 												  mp4_name))
 		for i, im in enumerate(reader):
-			print('processing... : %d, %s, %d'% (subject_num, mp4_name, i))
+			print('processing... : %d, %s, %d'% (subject_num, mp4_name, i + 1))
 			save_filename = '%s.%s.%d.jpg' % (self.csv_subject_label_names[subject_num],
-											  mp4_name, i)
-			imageio.imwrite('%s/%s' % (save_path, save_filename), im)
-			# print(self.find_label_from_filename(save_filename))
+											  mp4_name, i + 1)
+			# imageio.imwrite('%s/%s' % (save_path, save_filename), im)
+			cv2.imwrite('%s/%s' % (save_path, save_filename), im)
 
 	def total_save_from_mp4(self):
 		save_path = '%s/%s' % (self.data_path, self.save_folder)
@@ -243,11 +265,11 @@ class csv_loader(object):
 
 	def read_jpg_files_according_subject_and_frames(self, each_row):
 		# Assume that the all images has (1280 x 720 - w x h)
-		sequence_frames = np.zeros(shape=(len(range(each_row['StartFrame'], each_row['EndFrame'] + 1)),
+		sequence_frames = np.zeros(shape=(len(range(each_row['StartFrame'], each_row['EndFrame'])),
 										  720, 1280, 3),
 								   dtype=np.float32)
 		movie_name = each_row['Video'].split('.')[0]
-		for i in range(int(each_row['StartFrame']), int(each_row['EndFrame']) + 1):
+		for i in range(int(each_row['StartFrame']), int(each_row['EndFrame'])):
 			each_filename = ('%s/%s/%s.%s.mp4.%d.jpg' % (self.data_path,
 														 self.save_folder,
 														 each_row['Subject'],
@@ -276,7 +298,7 @@ class csv_loader(object):
 												   row['Video'].split('.')[0],
 												   i))
 							for row in self.all_annotations
-							for i in range(int(row['StartFrame']), int(row['EndFrame']) + 1)
+							for i in range(int(row['StartFrame']), int(row['EndFrame']))
 							]
 		return meaningful_names
 
@@ -288,7 +310,7 @@ class csv_loader(object):
 														 i))
 								  for row in self.all_annotations
 								  for sub_num in train_sub_list
-								  for i in range(int(row['StartFrame']), int(row['EndFrame']) + 1)
+								  for i in range(int(row['StartFrame']), int(row['EndFrame'])-1)
 								  if self.csv_subject_label_names[sub_num] == row['Subject']
 								  ]
 
@@ -297,7 +319,7 @@ class csv_loader(object):
 														 i))
 								  for row in self.all_annotations
 								  for sub_num in val_sub_list
-								  for i in range(int(row['StartFrame']), int(row['EndFrame']) + 1)
+								  for i in range(int(row['StartFrame']), int(row['EndFrame']))
 								  if self.csv_subject_label_names[sub_num] == row['Subject']
 								  ]
 
@@ -306,7 +328,7 @@ class csv_loader(object):
 														 i))
 								  for row in self.all_annotations
 								  for sub_num in test_sub_list
-								  for i in range(int(row['StartFrame']), int(row['EndFrame']) + 1)
+								  for i in range(int(row['StartFrame']), int(row['EndFrame']))
 								  if self.csv_subject_label_names[sub_num] == row['Subject']
 								  ]
 
@@ -341,7 +363,14 @@ class csv_loader(object):
 		label_raw = self.find_label_from_filename(current_image_name)
 		label = np.int64(self.get_label_indexes(label_raw[0]))
 
-		img = np.float32(cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))) / 255.0
+		if self.label_order is not None:
+			label = label[self.label_order]
+
+		# img = imageio.imread(filename)
+		img = cv2.imread(filename)
+		img = cv2.resize(img, tuple(self.resize_image_size))
+		img = img.astype(np.float32) / 255.0
+		img = img[:, :, ::-1]  # convert BGR -> RGB
 
 		return img, label
 
@@ -358,7 +387,12 @@ class csv_loader(object):
 		label_raw = self.find_label_from_filename(current_image_name)
 		label = np.int64(self.get_label_indexes(label_raw[0]))
 
-		img = np.float32(cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))) / 255.0
+		if self.label_order is not None:
+			label = label[self.label_order]
+
+		img = cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))
+		img = img.astype(np.float32) / 255.0
+		img = img[:, :, ::-1]  # convert BGR -> RGB
 
 		return img, label
 
@@ -375,7 +409,12 @@ class csv_loader(object):
 		label_raw = self.find_label_from_filename(current_image_name)
 		label = np.int64(self.get_label_indexes(label_raw[0]))
 
-		img = np.float32(cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))) / 255.0
+		if self.label_order is not None:
+			label = label[self.label_order]
+
+		img = cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))
+		img = img.astype(np.float32) / 255.0
+		img = img[:, :, ::-1]  # convert BGR -> RGB
 
 		return img, label
 
@@ -413,34 +452,46 @@ class csv_loader(object):
 			train_set = tf.data.Dataset.from_tensor_slices(train_order)
 			train_set = train_set.map(lambda num: tuple(
 				tf.py_func(self._read_per_image_train, [num], [tf.float32, tf.int64])))
-			train_set = train_set.map(self._adjust_tf_image_function)
+
+			if self.do_preprocessing:
+				train_set = train_set.map(self._adjust_tf_image_function)
 
 			train_set = train_set.batch(self.batch_size)
+			# train_set = train_set.apply(tf.contrib.data.batch_and_drop_remainder(self.batch_size))
 
 		with tf.name_scope('validation_dataset'):
 			val_size = len(self.val_meaningful_jpg_names)
 			## Validation set don't need shuffle.
-			val_order = tf.linspace(tf.cast(val_size, tf.float32), (float(val_size) - 1.0), val_size)
+			val_order = tf.linspace(0.0, (float(val_size) - 1.0), val_size)#tf.cast(val_size, tf.float32)
 
 			val_set = tf.data.Dataset.from_tensor_slices(val_order)
 			val_set = val_set.map(lambda num: tuple(
-				tf.py_func(self._read_per_image_val, [num, 'val'], [tf.float32, tf.int64])))
+				tf.py_func(self._read_per_image_val, [num], [tf.float32, tf.int64])))
 
 			val_set = val_set.batch(self.batch_size)
 
 		with tf.name_scope('test_dataset'):
 			test_size = len(self.test_meaningful_jpg_names)
 			## Test set don't need shuffle.
-			test_order = tf.linspace(tf.cast(test_size, tf.float32), (float(test_size) - 1.0), test_size)
+			test_order = tf.linspace(0.0, (float(test_size) - 1.0), test_size)#tf.cast(test_size, tf.float32)
 
 			test_set = tf.data.Dataset.from_tensor_slices(test_order)
 			test_set = test_set.map(lambda num: tuple(
-				tf.py_func(self._read_per_image_test, [num, 'test'], [tf.float32, tf.int64])))
+				tf.py_func(self._read_per_image_test, [num], [tf.float32, tf.int64])))
 
 			test_set = test_set.batch(self.batch_size)
 
 		with tf.name_scope('dataset_initializer'):
-			iterator = tf.data.Iterator.from_structure(train_set.output_types, train_set.output_shapes)
+			# iterator = tf.data.Iterator.from_structure(train_set.output_types, train_set.output_shapes)
+			iterator = tf.data.Iterator.from_structure(train_set.output_types,
+			                                           (tf.TensorShape([None,
+			                                                            self.resize_image_size[0],
+			                                                            self.resize_image_size[1],
+			                                                            3]),
+			                                            tf.TensorShape([None,
+			                                                            len(self.classes_numbers)])
+			                                            )
+			                                           )
 			next_element = iterator.get_next()
 
 			training_init_op = iterator.make_initializer(train_set, name='train_set_initializer')

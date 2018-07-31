@@ -2,7 +2,7 @@ import csv
 import Grasp_csv_Loader
 import numpy as np
 
-csv_path = '../Gopro'
+csv_path = '../../../Dataset/Gopro'
 # csv_path = '..\\grasp_dataset\\Xsens'
 
 csv_filename = 'SDATA1700291_annotated_data.csv'
