@@ -26,14 +26,16 @@ class PARAMS(object):
 
 	# define all required parameters here
 	image_size = [224, 224]
-	batch_size = 30
+	batch_size = 50
 	epochs = 30
-	learning_rate = 0.001
+	learning_rate = 0.0001
 	learning_rate_decay_factor = 0.94
 	beta = 0.0002
 	epoch_decay = 4
 	weight_decay = 1e-4
 	print_freq = 10
+	# optimizer = 'adam'
+	optimizer = 'ftrl'
 
 	thread = 8
-	gpu_num = '0'
+	gpu_num = '2'

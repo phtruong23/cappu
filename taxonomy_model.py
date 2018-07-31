@@ -27,6 +27,7 @@ class taxonomy_model(object):
 	             all_label=None,
 	             all_value=None,
 	             batch_weight_range=[0.5, 1.0],
+	             optimizer='adam',
 	             is_mode='train',
 	             restore_path=''):
 
@@ -48,6 +49,7 @@ class taxonomy_model(object):
 		self.all_label = all_label
 		self.all_value = all_value
 		self.batch_weight_range = batch_weight_range
+		self.optimizer = optimizer
 		self.restore_path = restore_path
 
 		# self.input = tf.placeholder(tf.float32,
@@ -381,18 +383,33 @@ class taxonomy_model(object):
 		summary_op = tf.summary.merge(list(summaries), name='summary_op')
 		return summary_op
 
+	def get_summary_op_test(self):
+
+		summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
+
+		for name in self.eval_updates.keys():
+			for stage in self.eval_updates[name].keys():
+				summaries.add(tf.summary.scalar('metrics_test/%s/%s' % (name, stage), self.eval_updates[name][stage]))
+
+		for name in self.net_losses.keys():
+			summaries.add(tf.summary.scalar('losses_test/%s' % (name), self.net_losses[name]))
+
+		summary_op = tf.summary.merge(list(summaries), name='summary_op_test')
+		return summary_op
+
 	def set_optimizer(self):
 
 		self.learning_rate = network_utils._configure_learning_rate(self.learning_rate, self.batch_size,
 															   self.num_samples, self.global_step)
 
 		variables_to_train = network_utils._get_variables_to_train(self.trainable_scopes)
+		# print(variables_to_train)
 		# variables_to_train = handle_network_function._get_variables_to_train(None)
 		# get gradients from trainable variables
 		grads = tf.gradients(self.net_losses['all'], variables_to_train)
 		# Adam Optimizer
 		# optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate, name='Adam_Optimizer')
-		optimizer = network_utils._configure_optimizer(learning_rate=self.learning_rate, optimizer='adam')
+		optimizer = network_utils._configure_optimizer(learning_rate=self.learning_rate, optimizer=self.optimizer)
 		# Apply Gradients
 		apply_op = optimizer.apply_gradients(
 			zip(grads, variables_to_train),
