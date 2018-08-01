@@ -420,13 +420,3 @@ class taxonomy_model(object):
 				                             ('stage_%d/fc8/squeezed') % (self.taxonomy_nums - 1)], int(k))
 
 		return predictions
-
-
-
-
-
-
-
-
-
-

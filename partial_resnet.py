@@ -264,5 +264,4 @@ def resnet_v2_partial_152(inputs,
 	                 include_root_block=include_root_block, spatial_squeeze=spatial_squeeze,
 	                 reuse=reuse, scope=scope)
 
-
 resnet_v2_partial_152.default_image_size = resnet_v2.default_image_size

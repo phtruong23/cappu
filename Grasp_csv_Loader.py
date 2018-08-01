@@ -1,3 +1,5 @@
+from __future__ import division
+
 import csv
 import cv2
 import imageio
@@ -182,6 +184,65 @@ class csv_loader(object):
 																		   self.test_list)
 
 
+	def get_annotation_sorted_by_label(self, label, label_names):
+
+		# train_meaningful_names = [('%s.%s.mp4.%d.jpg' % (row['Subject'],
+		#                                                  row['Video'].split('.')[0],
+		#                                                  i))
+		#                           for row in self.all_annotations
+		#                           for sub_num in train_sub_list
+		#                           for i in range(int(row['StartFrame']), int(row['EndFrame']))
+		#                           if self.csv_subject_label_names[sub_num] == row['Subject']
+		#                           ]
+
+		total_list = []
+		for i, name in enumerate(label_names):
+			temp_list = []
+			for row in self.all_annotations:
+				if name == row[label]:
+					temp_list.append(row)
+			total_list.append(temp_list)
+
+		return total_list
+
+	# ratio must has 3 elements : [training_ratio, validation_ratio, testing_ratio]
+	# The sum of these has to be 1.
+	def get_jpg_filenames_labels_from_sorted_annotations(self, total_list, ratio):
+
+		train_names = []
+		train_labels = []
+		val_names = []
+		val_labels = []
+		test_names = []
+		test_labels = []
+		for sub in total_list:
+			for row in sub:
+				cur_range = int(row['EndFrame']) - int(row['StartFrame'])
+				train_ren = int(cur_range * ratio[0])
+				val_ren = int(cur_range * ratio[1])
+				test_ren = int(cur_range * ratio[2])
+				for i in np.random.permutation(range(int(row['StartFrame']), int(row['EndFrame']))):
+				# for i in range(int(row['StartFrame']), int(row['EndFrame'])):
+					cur_name = ('%s.%s.mp4.%d.jpg' % (row['Subject'], row['Video'].split('.')[0], i))
+					cur_label = {'Grasp': row['Grasp'],
+					             'ADL': row['ADL'],
+					             'OppType': row['OppType'],
+					             'PIP': row['PIP'],
+					             'VirtualFingers': row['VirtualFingers'],
+					             'Thumb': row['Thumb']}
+					if i >= int(row['StartFrame']) and i < (int(row['StartFrame']) + train_ren):
+						train_names.append(cur_name)
+						train_labels.append(cur_label)
+					elif i >= (int(row['StartFrame']) + train_ren) and i < (int(row['StartFrame']) + train_ren + val_ren):
+						val_names.append(cur_name)
+						val_labels.append(cur_label)
+					elif i >= (int(row['StartFrame']) + train_ren + val_ren) and i < int(row['EndFrame']):
+						test_names.append(cur_name)
+						test_labels.append(cur_label)
+
+		return train_names, train_labels, val_names, val_labels, test_names, test_labels
+
+
 
 	def get_all_annotations(self):
 		with open('%s/%s' % (self.data_path, self.csv_filename), newline='') as csvfile:
@@ -231,6 +292,7 @@ class csv_loader(object):
 			print('processing... : %d, %s, %d'% (subject_num, mp4_name, i + 1))
 			save_filename = '%s.%s.%d.jpg' % (self.csv_subject_label_names[subject_num],
 											  mp4_name, i + 1)
+
 			# imageio.imwrite('%s/%s' % (save_path, save_filename), im)
 			cv2.imwrite('%s/%s' % (save_path, save_filename), im)
 
@@ -310,7 +372,7 @@ class csv_loader(object):
 														 i))
 								  for row in self.all_annotations
 								  for sub_num in train_sub_list
-								  for i in range(int(row['StartFrame']), int(row['EndFrame'])-1)
+								  for i in range(int(row['StartFrame']), int(row['EndFrame']))
 								  if self.csv_subject_label_names[sub_num] == row['Subject']
 								  ]
 
@@ -469,6 +531,7 @@ class csv_loader(object):
 				tf.py_func(self._read_per_image_val, [num], [tf.float32, tf.int64])))
 
 			val_set = val_set.batch(self.batch_size)
+			# val_set = val_set.apply(tf.contrib.data.batch_and_drop_remainder(self.batch_size))
 
 		with tf.name_scope('test_dataset'):
 			test_size = len(self.test_meaningful_jpg_names)
@@ -480,6 +543,7 @@ class csv_loader(object):
 				tf.py_func(self._read_per_image_test, [num], [tf.float32, tf.int64])))
 
 			test_set = test_set.batch(self.batch_size)
+			# test_set = test_set.apply(tf.contrib.data.batch_and_drop_remainder(self.batch_size))
 
 		with tf.name_scope('dataset_initializer'):
 			# iterator = tf.data.Iterator.from_structure(train_set.output_types, train_set.output_shapes)
@@ -492,6 +556,7 @@ class csv_loader(object):
 			                                                            len(self.classes_numbers)])
 			                                            )
 			                                           )
+
 			next_element = iterator.get_next()
 
 			training_init_op = iterator.make_initializer(train_set, name='train_set_initializer')

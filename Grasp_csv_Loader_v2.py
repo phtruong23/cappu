@@ -671,3 +671,4 @@ class csv_loader(object):
 			test_init_op = iterator.make_initializer(test_set, name='test_set_initializer')
 
 		return next_element, training_init_op, validation_init_op, test_init_op
+
