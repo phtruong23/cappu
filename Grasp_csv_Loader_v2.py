@@ -128,10 +128,13 @@ class csv_loader(object):
 	             divided_npz_name='divided_dataset.npz',
 	             label_order=None,
 				 batch_size=10,
+	             trans_range = None,
+	             rotate_range = None,
 				 max_hue_delta=0.15,
 				 saturation_range=[0.5, 2.0],
 				 max_bright_delta=0.25,
 				 max_contrast_delta=[0, 0.3],
+	             process_num=8,
 				 is_training=True
 				 ):
 		self.csv_subject_folder_names = csv_subject_folder_names
@@ -168,11 +171,14 @@ class csv_loader(object):
 		self.is_divided_saved = is_divided_saved
 		self.divided_npz_name = divided_npz_name
 
+		self.trans_range = trans_range
+		self.rotate_range = rotate_range
 		self.batch_size = batch_size
 		self.max_hue_delta = max_hue_delta
 		self.saturation_range = saturation_range
 		self.max_bright_delta = max_bright_delta
 		self.max_contrast_delta = max_contrast_delta
+		self.process_num = process_num
 		self.is_training = is_training
 
 		self.all_annotations = self.get_all_annotations()
@@ -358,7 +364,7 @@ class csv_loader(object):
 			print('processing... : %d, %s, %d'% (subject_num, mp4_name, i + 1))
 			save_filename = '%s.%s.%d.jpg' % (self.csv_subject_label_names[subject_num],
 											  mp4_name, i + 1)
-			imageio.imwrite('%s/%s' % (save_path, save_filename), im)
+			cv2.imwrite('%s/%s' % (save_path, save_filename), im)
 
 	def total_save_from_mp4(self):
 		save_path = '%s/%s' % (self.data_path, self.save_folder)
@@ -475,6 +481,20 @@ class csv_loader(object):
 		# Change order if you want it
 		return [grasp_id[0], adl_id[0], opptype_id[0], pip_id[0], virtual_fingers_id[0], thumb_id[0]]
 
+	def rotate_image(self, img, rotate_center, degree):
+
+		rotation_matrix = cv2.getRotationMatrix2D(rotate_center, degree, 1)
+		img_rotated = cv2.warpAffine(img, rotation_matrix, (np.shape(img)[1], np.shape(img)[0]))
+
+		return img_rotated
+
+	def translate_image(self, img, trans_x, trans_y):
+
+		translation_matrix = np.float32([[1, 0, trans_x], [0, 1, trans_y]])
+		img_translated = cv2.warpAffine(img, translation_matrix, (np.shape(img)[1], np.shape(img)[0]))
+
+		return img_translated
+
 
 	# This function will be working on the dataset map function
 	def _read_per_image_train(self, num):
@@ -502,6 +522,17 @@ class csv_loader(object):
 			label = label[self.label_order]
 
 		img = np.float32(cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))) / 255.0
+
+		# Translate and rotate images with opencv functions
+		if self.rotate_range is not None:
+			degree = np.random.randint(low=self.rotate_range[0], high=self.rotate_range[1], size=1)
+			img = self.rotate_image(img, (int(self.resize_image_size[0]), int(self.resize_image_size[1])), degree[0])
+		if self.trans_range is not None:
+			trans_x = np.random.randint(low=self.trans_range[0], high=self.trans_range[1], size=1)
+			trans_y = np.random.randint(low=self.trans_range[0], high=self.trans_range[1], size=1)
+			img = self.translate_image(img, trans_x, trans_y)
+
+
 		# Change BGR order to RGB order
 		img = img[:,:, [2, 1, 0]]
 
@@ -574,6 +605,18 @@ class csv_loader(object):
 
 	def _adjust_tf_image_function(self, image, label):
 
+		# if self.trans_range is not None:
+		# 	temp_dx = tf.reshape(
+		# 		tf.random_shuffle(tf.linspace(self.trans_range[0], self.trans_range[1], self.batch_size)),
+		# 		shape=[self.batch_size, 1])
+		# 	temp_dy = tf.reshape(
+		# 		tf.random_shuffle(tf.linspace(self.trans_range[0], self.trans_range[1], self.batch_size)),
+		# 		shape = [self.batch_size, 1])
+		# 	image = tf.contrib.image.translate(image, translations=tf.concat([temp_dx, temp_dy], axis=1))
+		# if self.rotate_range is not None:
+		# 	temp_angles = tf.random_shuffle(tf.linspace(self.rotate_range[0], self.rotate_range[1], self.batch_size))
+		# 	image = tf.contrib.image.rotate(image, angles=temp_angles)
+
 		if self.max_hue_delta is not None:
 			# random hue
 			image = tf.image.random_hue(image, max_delta=self.max_hue_delta)
@@ -606,8 +649,8 @@ class csv_loader(object):
 
 			train_set = tf.data.Dataset.from_tensor_slices(train_order)
 			train_set = train_set.map(lambda num: tuple(
-				tf.py_func(self._read_per_image_train, [num], [tf.float32, tf.int64])))
-			train_set = train_set.map(self._adjust_tf_image_function)
+				tf.py_func(self._read_per_image_train, [num], [tf.float32, tf.int64])), num_parallel_calls=self.process_num)
+			train_set = train_set.map(self._adjust_tf_image_function, num_parallel_calls=self.process_num)
 
 			train_set = train_set.batch(self.batch_size)
 			# train_set = train_set.apply(tf.contrib.data.batch_and_drop_remainder(self.batch_size))
@@ -618,11 +661,11 @@ class csv_loader(object):
 			elif self.divide_by_ratio == True:
 				val_size = len(self.val_info)
 			## Validation set don't need shuffle.
-			val_order = tf.linspace(tf.cast(val_size, tf.float32), (float(val_size) - 1.0), val_size)
+			val_order = tf.linspace(0.0, (float(val_size) - 1.0), val_size)
 
 			val_set = tf.data.Dataset.from_tensor_slices(val_order)
 			val_set = val_set.map(lambda num: tuple(
-				tf.py_func(self._read_per_image_val, [num, 'val'], [tf.float32, tf.int64])))
+				tf.py_func(self._read_per_image_val, [num], [tf.float32, tf.int64])), num_parallel_calls=self.process_num)
 
 			val_set = val_set.batch(self.batch_size)
 			# val_set = val_set.apply(tf.contrib.data.batch_and_drop_remainder(self.batch_size))
@@ -633,11 +676,11 @@ class csv_loader(object):
 			elif self.divide_by_ratio == True:
 				test_size = len(self.test_info)
 			## Test set don't need shuffle.
-			test_order = tf.linspace(tf.cast(test_size, tf.float32), (float(test_size) - 1.0), test_size)
+			test_order = tf.linspace(0.0, (float(test_size) - 1.0), test_size)
 
 			test_set = tf.data.Dataset.from_tensor_slices(test_order)
 			test_set = test_set.map(lambda num: tuple(
-				tf.py_func(self._read_per_image_test, [num, 'test'], [tf.float32, tf.int64])))
+				tf.py_func(self._read_per_image_test, [num], [tf.float32, tf.int64])), num_parallel_calls=self.process_num)
 
 			test_set = test_set.batch(self.batch_size)
 			# test_set = test_set.apply(tf.contrib.data.batch_and_drop_remainder(self.batch_size))
