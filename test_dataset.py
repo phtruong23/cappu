@@ -21,6 +21,16 @@ save_folder = 'save_frames'
 
 label_order = [5, 3, 2, 4, 0]
 
+# grasp_loader = Grasp_csv_Loader.csv_loader(data_path=csv_path,
+# 										   csv_filename=csv_filename,
+# 										   save_folder=save_folder,
+#                                            label_order=label_order,
+# 										   batch_size=500)
+
+# print(len(grasp_loader.train_meaningful_jpg_names),
+# 	  len(grasp_loader.val_meaningful_jpg_names),
+# 	  len(grasp_loader.test_meaningful_jpg_names))
+
 grasp_loader = Grasp_csv_Loader_v2.csv_loader(data_path=csv_path,
                                               csv_filename=csv_filename,
 										      save_folder=save_folder,
@@ -105,10 +115,6 @@ with tf.Session(config=config) as sess:
 			print('testing... : ', np.shape(update['batch_image']), np.shape(update['batch_label']))
 		except tf.errors.OutOfRangeError:
 			break
-
-
-
-
 
 
 

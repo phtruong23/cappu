@@ -1,15 +1,11 @@
-from __future__ import division
-
 import csv
 import cv2
 import imageio
 import numpy as np
 import os
+import datetime
 import fnmatch
 import tensorflow as tf
-
-import scipy.io as sio
-from tempfile import TemporaryFile
 
 # Number of classes : 13
 csv_subject_folder_names = ['1. Subject 1',
@@ -119,19 +115,15 @@ class csv_loader(object):
 				 save_folder,
 				 is_saved=True,
 				 resize_image_size=[224, 224],
-				 train_subject_list=[0, 1, 2, 3, 4, 5, 6, 7, 8],
-				 val_subject_list=[9],
-				 test_subject_list=[10, 11, 12],
-	             data_divide_ratio=[0.7, 0.1, 0.2],
-	             divide_by_ratio=True,
-	             is_divided_saved=True,
-	             divided_npz_name='divided_dataset.npz',
+				 train_list=[0, 1, 2, 3, 4, 5, 6, 7, 8],
+				 val_list=[9],
+				 test_list=[10, 11, 12],
 	             label_order=None,
 				 batch_size=10,
 				 max_hue_delta=0.15,
-				 saturation_range=[0.5, 2.0],
+				 saturation_range=None,
 				 max_bright_delta=0.25,
-				 max_contrast_delta=[0, 0.3],
+				 max_contrast_delta=None,
 				 is_training=True
 				 ):
 		self.csv_subject_folder_names = csv_subject_folder_names
@@ -160,19 +152,16 @@ class csv_loader(object):
 		self.csv_filename = csv_filename
 		self.save_folder = save_folder
 		self.resize_image_size = resize_image_size
-		self.train_subject_list = train_subject_list
-		self.val_subject_list = val_subject_list
-		self.test_subject_list = test_subject_list
-		self.data_divide_ratio = data_divide_ratio
-		self.divide_by_ratio = divide_by_ratio
-		self.is_divided_saved = is_divided_saved
-		self.divided_npz_name = divided_npz_name
+		self.train_list = train_list
+		self.val_list = val_list
+		self.test_list = test_list
 
 		self.batch_size = batch_size
-		self.max_hue_delta = max_hue_delta
-		self.saturation_range = saturation_range
-		self.max_bright_delta = max_bright_delta
-		self.max_contrast_delta = max_contrast_delta
+
+		self.max_hue_delta = max_hue_delta if max_hue_delta is not None else 0.15
+		self.saturation_range = saturation_range if saturation_range is not None else [0.5, 2.0]
+		self.max_bright_delta = max_bright_delta if max_bright_delta is not None else 0.25
+		self.max_contrast_delta = max_contrast_delta if max_contrast_delta is not None else [0, 0.3]
 		self.is_training = is_training
 
 		self.all_annotations = self.get_all_annotations()
@@ -187,128 +176,52 @@ class csv_loader(object):
 			# This makes thress names from annotations
 			# It makes three parts : train, validation, test
 			# It is also fast enough
-			# It will divide the dataset by subjects
-			if self.divide_by_ratio == False:
-				self.train_meaningful_jpg_names, self.val_meaningful_jpg_names, self.test_meaningful_jpg_names = \
-					self.get_divided_meaningful_jpg_filenames_from_annotations(self.train_subject_list,
-																			   self.val_subject_list,
-																			   self.test_subject_list)
-			elif self.divide_by_ratio == True:
-				# It will divide by 'Grasp'
-				# If the informations already saved, load this.
-				if self.is_divided_saved == True:
-					# self.train_names, self.train_labels, self.val_names, self.val_labels, self.test_names, self.test_labels = \
-					# 	self.load_all_by_mat()
-					# self.train_info, self.val_info, self.test_info = self.load_all_by_mat()
-					self.train_info, self.val_info, self.test_info = self.load_all_by_npz()
-				else:
-					grasp_total_list = self.get_annotation_sorted_by_label('Grasp', self.grasp_names)
-					# self.train_names, self.train_labels, self.val_names, self.val_labels, self.test_names, self.test_labels = \
-					# 	self.get_jpg_filenames_labels_from_sorted_annotations(grasp_total_list, self.data_divide_ratio)
-					self.train_info, self.val_info, self.test_info = \
-						self.get_jpg_filenames_labels_from_sorted_annotations(grasp_total_list, self.data_divide_ratio)
-					# self.save_all_by_mat(self.train_names, self.train_labels, self.val_names, self.val_labels, self.test_names, self.test_labels)
-					# self.save_all_by_mat(self.train_info, self.val_info, self.test_info)
-					self.save_all_by_npz(self.train_info, self.val_info, self.test_info)
+			self.train_meaningful_jpg_names, self.val_meaningful_jpg_names, self.test_meaningful_jpg_names = \
+				self.get_divided_meaningful_jpg_filenames_from_annotations(self.train_list,
+																		   self.val_list,
+																		   self.test_list)
 
+		current_time = datetime.datetime.now()
+		if self.is_training:
+			# self.all_train_images = self._load_images(self.train_meaningful_jpg_names)
+			# self.all_val_images = self._load_images(self.val_meaningful_jpg_names)
+			# self.all_test_images = []
+			self.all_train_images = []
+			for i in range(len(self.train_meaningful_jpg_names)):
+				filename = ('%s/%s/%s' % (self.data_path,
+										  self.save_folder,
+										  self.train_meaningful_jpg_names[i]))
+				img = cv2.imread(filename)
+				img = cv2.resize(img, tuple(self.resize_image_size))
+				img = img.astype(np.float32) / 255.0
+				self.all_train_images.append(img)
 
-	def get_annotation_sorted_by_label(self, label, label_names):
+			self.all_val_images = []
+			for i in range(len(self.val_meaningful_jpg_names)):
+				filename = ('%s/%s/%s' % (self.data_path,
+										  self.save_folder,
+										  self.val_meaningful_jpg_names[i]))
+				img = cv2.imread(filename)
+				img = cv2.resize(img, tuple(self.resize_image_size))
+				img = img.astype(np.float32) / 255.0
+				self.all_val_images.append(img)
 
-		total_list = []
-		for i, name in enumerate(label_names):
-			temp_list = []
-			for row in self.all_annotations:
-				if name == row[label]:
-					temp_list.append(row)
-			total_list.append(temp_list)
-
-		return total_list
-
-	# ratio must has 3 elements : [training_ratio, validation_ratio, testing_ratio]
-	# The sum of these has to be 1.
-	def get_jpg_filenames_labels_from_sorted_annotations(self, total_list, ratio):
-
-		# train_names = []
-		# train_labels = []
-		# val_names = []
-		# val_labels = []
-		# test_names = []
-		# test_labels = []
-		train_info = []
-		val_info = []
-		test_info = []
-		for sub in total_list:
-			for row in sub:
-				cur_range = int(row['EndFrame']) - int(row['StartFrame'])
-				train_ren = int(cur_range * ratio[0])
-				val_ren = int(cur_range * ratio[1])
-				test_ren = int(cur_range * ratio[2])
-				for i in np.random.permutation(range(int(row['StartFrame']), int(row['EndFrame']))):
-				# for i in range(int(row['StartFrame']), int(row['EndFrame'])):
-				# 	cur_name = ('%s.%s.mp4.%d.jpg' % (row['Subject'], row['Video'].split('.')[0], i))
-				# 	cur_label = {'Grasp': row['Grasp'],
-				# 	             'ADL': row['ADL'],
-				# 	             'OppType': row['OppType'],
-				# 	             'PIP': row['PIP'],
-				# 	             'VirtualFingers': row['VirtualFingers'],
-				# 	             'Thumb': row['Thumb']}
-					cur_info = {'Filename': ('%s.%s.mp4.%d.jpg' % (row['Subject'], row['Video'].split('.')[0], i)),
-					             'Grasp': row['Grasp'],
-					             'ADL': row['ADL'],
-					             'OppType': row['OppType'],
-					             'PIP': row['PIP'],
-					             'VirtualFingers': row['VirtualFingers'],
-					             'Thumb': row['Thumb']}
-					if i >= int(row['StartFrame']) and i < (int(row['StartFrame']) + train_ren):
-						# train_names.append(cur_name)
-						# train_labels.append(cur_label)
-						train_info.append(cur_info)
-					elif i >= (int(row['StartFrame']) + train_ren) and i < (int(row['StartFrame']) + train_ren + val_ren):
-						# val_names.append(cur_name)
-						# val_labels.append(cur_label)
-						val_info.append(cur_info)
-					elif i >= (int(row['StartFrame']) + train_ren + val_ren) and i < int(row['EndFrame']):
-						# test_names.append(cur_name)
-						# test_labels.append(cur_label)
-						test_info.append(cur_info)
-
-		# return train_names, train_labels, val_names, val_labels, test_names, test_labels
-		return train_info, val_info, test_info
-
-	def save_all_by_mat(self, train_info, val_info, test_info):
-
-		sio.savemat(('%s/%s' % (self.data_path, self.divided_mat_name)), {'train_info': train_info,
-		                                                                  'val_info': val_info,
-		                                                                  'test_info': test_info})
-
-	def load_all_by_mat(self):
-
-		loaded_mat = sio.loadmat('%s/%s' % (self.data_path, self.divided_mat_name))
-		train_info = loaded_mat['train_info']
-		val_info = loaded_mat['val_info']
-		test_info= loaded_mat['test_info']
-
-		# return train_names, train_labels, val_names, val_labels, test_names, test_labels
-		return train_info, val_info, test_info
-
-	def save_all_by_npz(self, train_info, val_info, test_info):
-
-		outfile = TemporaryFile()
-		np.savez(('%s/%s' % (self.data_path, self.divided_npz_name)),
-		         train_info = train_info,
-		         val_info = val_info,
-		         test_info = test_info)
-		outfile.seek(0)
-
-	def load_all_by_npz(self):
-
-		loaded_mat = np.load('%s/%s' % (self.data_path, self.divided_npz_name))
-		train_info = loaded_mat['train_info']
-		val_info = loaded_mat['val_info']
-		test_info= loaded_mat['test_info']
-
-		# return train_names, train_labels, val_names, val_labels, test_names, test_labels
-		return train_info, val_info, test_info
+			self.all_test_images = []
+		else:
+			# self.all_train_images, self.all_val_images = [], []
+			# self.all_test_images = self._load_images(self.test_meaningful_jpg_names)
+			self.all_train_images = []
+			self.all_val_images = []
+			self.all_test_images = []
+			for i in range(len(self.test_meaningful_jpg_names)):
+				filename = ('%s/%s/%s' % (self.data_path,
+										  self.save_folder,
+										  self.test_meaningful_jpg_names[i]))
+				img = cv2.imread(filename)
+				img = cv2.resize(img, tuple(self.resize_image_size))
+				img = img.astype(np.float32) / 255.0
+				self.all_test_images.append(img)
+		print('Load all images done! Runtime:', datetime.datetime.now() - current_time)
 
 	def get_all_annotations(self):
 		with open('%s/%s' % (self.data_path, self.csv_filename), newline='') as csvfile:
@@ -358,7 +271,8 @@ class csv_loader(object):
 			print('processing... : %d, %s, %d'% (subject_num, mp4_name, i + 1))
 			save_filename = '%s.%s.%d.jpg' % (self.csv_subject_label_names[subject_num],
 											  mp4_name, i + 1)
-			imageio.imwrite('%s/%s' % (save_path, save_filename), im)
+			# imageio.imwrite('%s/%s' % (save_path, save_filename), im)
+			cv2.imwrite('%s/%s' % (save_path, save_filename), im)
 
 	def total_save_from_mp4(self):
 		save_path = '%s/%s' % (self.data_path, self.save_folder)
@@ -416,6 +330,20 @@ class csv_loader(object):
 
 		return jpg_names
 
+	def _load_images(self, namelist):
+
+		images = []
+		for i in range(len(namelist)):
+			filename = ('%s/%s/%s' % (self.data_path,
+									  self.save_folder,
+									  namelist[i]))
+			img = cv2.imread(filename)
+			img = cv2.resize(img, tuple(self.resize_image_size))
+			img = img.astype(np.float32) / 255.0
+			images.append(img)
+
+		return images
+
 	# This function make names from annotations artificially
 	# For takes only meaningful filenames
 	# Meaningful means that these names has annotations
@@ -436,7 +364,7 @@ class csv_loader(object):
 														 i))
 								  for row in self.all_annotations
 								  for sub_num in train_sub_list
-								  for i in range(int(row['StartFrame']), int(row['EndFrame']))
+								  for i in range(int(row['StartFrame']), int(row['EndFrame'])-1)
 								  if self.csv_subject_label_names[sub_num] == row['Subject']
 								  ]
 
@@ -480,30 +408,22 @@ class csv_loader(object):
 	def _read_per_image_train(self, num):
 		temp_num = np.int(num)
 
-		if self.divide_by_ratio == False:
-			current_image_name = self.train_meaningful_jpg_names[temp_num]
+		current_image_name = self.train_meaningful_jpg_names[temp_num]
 
-			filename = ('%s/%s/%s' % (self.data_path,
-									  self.save_folder,
-									  current_image_name))
+		filename = ('%s/%s/%s' % (self.data_path,
+								  self.save_folder,
+								  current_image_name))
 
-			label_raw = self.find_label_from_filename(current_image_name)
+		label_raw = self.find_label_from_filename(current_image_name)
+		label = np.int64(self.get_label_indexes(label_raw[0]))
 
-		else:
-			# filename = self.train_names[temp_num]
-			# label_raw = self.train_labels[temp_num]
-			filename = ('%s/%s/%s' % (self.data_path,
-			                          self.save_folder,
-			                          self.train_info[temp_num]['Filename']))
-			label_raw = self.train_info[temp_num]
-
-		label = np.int64(self.get_label_indexes(label_raw))
 		if self.label_order is not None:
 			label = label[self.label_order]
 
-		img = np.float32(cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))) / 255.0
-		# Change BGR order to RGB order
-		img = img[:,:, [2, 1, 0]]
+		# img = imageio.imread(filename)
+		img = cv2.imread(filename)
+		img = cv2.resize(img, tuple(self.resize_image_size))
+		img = img.astype(np.float32) / 255.0
 
 		return img, label
 
@@ -511,30 +431,20 @@ class csv_loader(object):
 	def _read_per_image_val(self, num):
 		temp_num = np.int(num)
 
-		if self.divide_by_ratio == False:
-			current_image_name = self.val_meaningful_jpg_names[temp_num]
+		current_image_name = self.val_meaningful_jpg_names[temp_num]
 
-			filename = ('%s/%s/%s' % (self.data_path,
-									  self.save_folder,
-									  current_image_name))
+		filename = ('%s/%s/%s' % (self.data_path,
+								  self.save_folder,
+								  current_image_name))
 
-			label_raw = self.find_label_from_filename(current_image_name)
+		label_raw = self.find_label_from_filename(current_image_name)
+		label = np.int64(self.get_label_indexes(label_raw[0]))
 
-		else:
-			# filename = self.val_names[temp_num]
-			# label_raw = self.val_labels[temp_num]
-			filename = ('%s/%s/%s' % (self.data_path,
-			                          self.save_folder,
-			                          self.val_info[temp_num]['Filename']))
-			label_raw = self.val_info[temp_num]
-
-		label = np.int64(self.get_label_indexes(label_raw))
 		if self.label_order is not None:
 			label = label[self.label_order]
 
-		img = np.float32(cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))) / 255.0
-		# Change BGR order to RGB order
-		img = img[:, :, [2, 1, 0]]
+		img = cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))
+		img = img.astype(np.float32) / 255.0
 
 		return img, label
 
@@ -542,35 +452,46 @@ class csv_loader(object):
 	def _read_per_image_test(self, num):
 		temp_num = np.int(num)
 
-		if self.divide_by_ratio == False:
-			current_image_name = self.test_meaningful_jpg_names[temp_num]
+		current_image_name = self.test_meaningful_jpg_names[temp_num]
 
-			filename = ('%s/%s/%s' % (self.data_path,
-									  self.save_folder,
-									  current_image_name))
+		filename = ('%s/%s/%s' % (self.data_path,
+								  self.save_folder,
+								  current_image_name))
 
-			label_raw = self.find_label_from_filename(current_image_name)
-
-		else:
-			# filename = self.test_names[temp_num]
-			# label_raw = self.test_labels[temp_num]
-			filename = ('%s/%s/%s' % (self.data_path,
-			                          self.save_folder,
-			                          self.test_info[temp_num]['Filename']))
-			label_raw = self.test_info[temp_num]
-
-		label = np.int64(self.get_label_indexes(label_raw))
+		label_raw = self.find_label_from_filename(current_image_name)
+		label = np.int64(self.get_label_indexes(label_raw[0]))
 
 		if self.label_order is not None:
 			label = label[self.label_order]
 
-		img = np.float32(cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))) / 255.0
-		# Change BGR order to RGB order
-		img = img[:, :, [2, 1, 0]]
+		img = cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))
+		img = img.astype(np.float32) / 255.0
 
 		return img, label
 
+	def _get_image(self, num, mode):
+		temp_num = np.int(num)
+		temp_mode = str(mode)
 
+		if temp_mode == 'train':
+			current_image_name = self.test_meaningful_jpg_names[temp_num]
+			img = self.all_train_images[temp_num]
+		elif temp_mode == 'val':
+			current_image_name = self.test_meaningful_jpg_names[temp_num]
+			img = self.all_val_images[temp_num]
+		elif temp_mode == 'test':
+			current_image_name = self.test_meaningful_jpg_names[temp_num]
+			img = self.all_test_images[temp_num]
+		else:
+			raise ValueError('mode should be one of ("train","val","test")')
+
+		label_raw = self.find_label_from_filename(current_image_name)
+		label = np.int64(self.get_label_indexes(label_raw[0]))
+
+		if self.label_order is not None:
+			label = label[self.label_order]
+
+		return img, label
 
 	def _adjust_tf_image_function(self, image, label):
 
@@ -598,62 +519,41 @@ class csv_loader(object):
 	def initialization_dataset(self):
 
 		with tf.name_scope('train_dataset'):
-			if self.divide_by_ratio == False:
-				train_size = len(self.train_meaningful_jpg_names)
-			else:
-				train_size = len(self.train_info)
+			train_size = len(self.train_meaningful_jpg_names)
 			train_order = tf.random_shuffle(tf.linspace(0.0, (float(train_size) - 1.0), train_size))
 
 			train_set = tf.data.Dataset.from_tensor_slices(train_order)
 			train_set = train_set.map(lambda num: tuple(
-				tf.py_func(self._read_per_image_train, [num], [tf.float32, tf.int64])))
+				tf.py_func(self._get_image, [num, 'train'], [tf.float32, tf.int64])))
 			train_set = train_set.map(self._adjust_tf_image_function)
 
 			train_set = train_set.batch(self.batch_size)
 			# train_set = train_set.apply(tf.contrib.data.batch_and_drop_remainder(self.batch_size))
 
 		with tf.name_scope('validation_dataset'):
-			if self.divide_by_ratio == False:
-				val_size = len(self.val_meaningful_jpg_names)
-			else:
-				val_size = len(self.val_info)
+			val_size = len(self.val_meaningful_jpg_names)
 			## Validation set don't need shuffle.
-			val_order = tf.linspace(tf.cast(val_size, tf.float32), (float(val_size) - 1.0), val_size)
+			val_order = tf.linspace(0.0, (float(val_size) - 1.0), val_size)#tf.cast(val_size, tf.float32)
 
 			val_set = tf.data.Dataset.from_tensor_slices(val_order)
 			val_set = val_set.map(lambda num: tuple(
-				tf.py_func(self._read_per_image_val, [num, 'val'], [tf.float32, tf.int64])))
+				tf.py_func(self._get_image, [num, 'val'], [tf.float32, tf.int64])))
 
 			val_set = val_set.batch(self.batch_size)
-			# val_set = val_set.apply(tf.contrib.data.batch_and_drop_remainder(self.batch_size))
 
 		with tf.name_scope('test_dataset'):
-			if self.divide_by_ratio == False:
-				test_size = len(self.test_meaningful_jpg_names)
-			else:
-				test_size = len(self.test_info)
+			test_size = len(self.test_meaningful_jpg_names)
 			## Test set don't need shuffle.
-			test_order = tf.linspace(tf.cast(test_size, tf.float32), (float(test_size) - 1.0), test_size)
+			test_order = tf.linspace(0.0, (float(test_size) - 1.0), test_size)#tf.cast(test_size, tf.float32)
 
 			test_set = tf.data.Dataset.from_tensor_slices(test_order)
 			test_set = test_set.map(lambda num: tuple(
-				tf.py_func(self._read_per_image_test, [num, 'test'], [tf.float32, tf.int64])))
+				tf.py_func(self._get_image, [num, 'val'], [tf.float32, tf.int64])))
 
 			test_set = test_set.batch(self.batch_size)
-			# test_set = test_set.apply(tf.contrib.data.batch_and_drop_remainder(self.batch_size))
 
 		with tf.name_scope('dataset_initializer'):
 			# iterator = tf.data.Iterator.from_structure(train_set.output_types, train_set.output_shapes)
-			# iterator = tf.data.Iterator.from_structure(train_set.output_types,
-			#                                            (tf.TensorShape([self.batch_size,
-			#                                                             self.resize_image_size[0],
-			#                                                             self.resize_image_size[1],
-			#                                                             3]),
-			#                                             tf.TensorShape([self.batch_size,
-			#                                                             len(self.classes_numbers)])
-			#                                             )
-			#                                            )
-
 			iterator = tf.data.Iterator.from_structure(train_set.output_types,
 			                                           (tf.TensorShape([None,
 			                                                            self.resize_image_size[0],
@@ -663,7 +563,6 @@ class csv_loader(object):
 			                                                            len(self.classes_numbers)])
 			                                            )
 			                                           )
-
 			next_element = iterator.get_next()
 
 			training_init_op = iterator.make_initializer(train_set, name='train_set_initializer')
@@ -671,4 +570,7 @@ class csv_loader(object):
 			test_init_op = iterator.make_initializer(test_set, name='test_set_initializer')
 
 		return next_element, training_init_op, validation_init_op, test_init_op
+
+
+
 

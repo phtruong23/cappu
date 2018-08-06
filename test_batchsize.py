@@ -137,7 +137,7 @@ def train():
 					# # print(len(update['all_inputs']), len(update['all_outputs']))
 					# print('losses:', update['losses'], 'accuracy:', update['eval_update']['Accuracy_top1'])
 					# # print('losses:', update['losses'])
-                    #
+
 					# # summary_writer.add_summary(update['summary'], total_step_num)
 					# # summary_writer.flush()
 					# total_step_num += 1

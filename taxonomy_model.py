@@ -27,7 +27,6 @@ class taxonomy_model(object):
 	             all_label=None,
 	             all_value=None,
 	             batch_weight_range=[0.5, 1.0],
-	             optimizer='adam',
 	             is_mode='train',
 	             restore_path=''):
 
@@ -49,7 +48,6 @@ class taxonomy_model(object):
 		self.all_label = all_label
 		self.all_value = all_value
 		self.batch_weight_range = batch_weight_range
-		self.optimizer = optimizer
 		self.restore_path = restore_path
 
 		# self.input = tf.placeholder(tf.float32,
@@ -102,6 +100,8 @@ class taxonomy_model(object):
 				                                                                      reuse=None,
 				                                                                      scope='resnet_v2_152',
 				                                                                      include_root_block=True)
+		else:
+			raise ValueError('select a correct version of resnet (50, 101 or 152')
 
 		if self.is_mode == 'train':
 			resnet_restore = network_utils._get_init_fn(self.resnet_pretrained_path, '',
@@ -115,7 +115,7 @@ class taxonomy_model(object):
 		with slim.arg_scope(partial_vgg.vgg_arg_scope()):
 			vgg19_partial = partial_vgg.vgg_partial(inputs=input,
 			                                        num_classes=None,
-			                                        is_training=True,
+			                                        is_training=self.vgg19_training_flag, #True,
 			                                        dropout_keep_prob=self.vgg_dropout,
 			                                        spatial_squeeze=True,
 			                                        scope=scope,
@@ -279,6 +279,7 @@ class taxonomy_model(object):
 						                          self.stage_outputs[i][('stage_%d/fc8/squeezed') % i])
 					else:
 						inout_logit = self.stage_outputs[i][('stage_%d/fc8/squeezed') % i]
+
 					net_losses['stage_%d' % i] = tf.losses.sparse_softmax_cross_entropy(
 						labels=self.true_labels[:, i],
 						logits=inout_logit,
@@ -298,10 +299,11 @@ class taxonomy_model(object):
 		else:
 			net_losses = {}
 			with tf.variable_scope('losses'):
+				layer = int(self.taxonomy_nums-1)
 				net_losses['all'] = tf.losses.sparse_softmax_cross_entropy(
 					labels=tf.squeeze(self.true_labels),
-					logits=self.stage_outputs[3][('stage_%d/fc8/squeezed') % 3],
-					weights=loss_weights, scope='loss_%s' % 3)
+					logits=self.stage_outputs[layer][('stage_%d/fc8/squeezed') % layer],
+					weights=loss_weights, scope='loss_%s' % layer)
 
 		return net_losses
 
@@ -383,33 +385,18 @@ class taxonomy_model(object):
 		summary_op = tf.summary.merge(list(summaries), name='summary_op')
 		return summary_op
 
-	def get_summary_op_test(self):
-
-		summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
-
-		for name in self.eval_updates.keys():
-			for stage in self.eval_updates[name].keys():
-				summaries.add(tf.summary.scalar('metrics_test/%s/%s' % (name, stage), self.eval_updates[name][stage]))
-
-		for name in self.net_losses.keys():
-			summaries.add(tf.summary.scalar('losses_test/%s' % (name), self.net_losses[name]))
-
-		summary_op = tf.summary.merge(list(summaries), name='summary_op_test')
-		return summary_op
-
 	def set_optimizer(self):
 
 		self.learning_rate = network_utils._configure_learning_rate(self.learning_rate, self.batch_size,
 															   self.num_samples, self.global_step)
 
 		variables_to_train = network_utils._get_variables_to_train(self.trainable_scopes)
-		# print(variables_to_train)
 		# variables_to_train = handle_network_function._get_variables_to_train(None)
 		# get gradients from trainable variables
 		grads = tf.gradients(self.net_losses['all'], variables_to_train)
 		# Adam Optimizer
 		# optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate, name='Adam_Optimizer')
-		optimizer = network_utils._configure_optimizer(learning_rate=self.learning_rate, optimizer=self.optimizer)
+		optimizer = network_utils._configure_optimizer(learning_rate=self.learning_rate, optimizer='adam')
 		# Apply Gradients
 		apply_op = optimizer.apply_gradients(
 			zip(grads, variables_to_train),
@@ -425,7 +412,7 @@ class taxonomy_model(object):
 
 	def get_prediction_topk(self, k=3):
 
-		if self.taxonomy_loss is not None:
+		if (self.taxonomy_nums>1) and self.taxonomy_loss is not None:
 			_, predictions = tf.nn.top_k(self.stage_outputs[self.taxonomy_nums - 1][
 				                             ('stage_%d/fc8/squeezed_tax') % (self.taxonomy_nums - 1)], int(k))
 		else:
@@ -433,13 +420,3 @@ class taxonomy_model(object):
 				                             ('stage_%d/fc8/squeezed') % (self.taxonomy_nums - 1)], int(k))
 
 		return predictions
-
-
-
-
-
-
-
-
-
-
