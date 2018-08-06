@@ -7,7 +7,7 @@ import taxonomy_model
 import argparse
 
 # import Grasp_csv_Loader as GraspLoader
-import Grasp_csv_Loader as GraspLoader
+import Grasp_csv_Loader_v2 as GraspLoader
 from params import PARAMS
 
 # Original order of batch label is :
@@ -29,21 +29,21 @@ def test(folder_log, modelname):
 		raise IsADirectoryError('No file at: ' + model_fullpath)
 
 	grasp_loader = GraspLoader.csv_loader(data_path=PARAMS.csv_path,
-											   csv_filename=PARAMS.csv_filename,
-											   save_folder=PARAMS.save_folder,
-	                                           is_saved=True,
-	                                           resize_image_size=PARAMS.image_size,
-	                                           train_list=PARAMS.train_list,
-	                                           val_list=PARAMS.val_list,
-	                                           test_list=PARAMS.test_list,
-	                                           label_order=label_order,
-	                                           batch_size=PARAMS.batch_size,
-	                                           max_hue_delta=PARAMS.max_hue_delta,
-	                                           saturation_range=PARAMS.saturation_range,
-	                                           max_bright_delta=PARAMS.max_bright_delta,
-	                                           max_contrast_delta=PARAMS.max_contrast_delta,
-	                                           is_training=False
-	                                           )
+										  csv_filename=PARAMS.csv_filename,
+										  save_folder=PARAMS.save_folder,
+										  is_saved=True,
+										  resize_image_size=PARAMS.image_size,
+										  train_subject_list=PARAMS.train_list,
+										  val_subject_list=PARAMS.val_list,
+										  test_subject_list=PARAMS.test_list,
+										  label_order=label_order,
+										  batch_size=PARAMS.batch_size,
+										  max_hue_delta=PARAMS.max_hue_delta,
+										  saturation_range=PARAMS.saturation_range,
+										  max_bright_delta=PARAMS.max_bright_delta,
+										  max_contrast_delta=PARAMS.max_contrast_delta,
+										  is_training=True
+										  )
 	grasp_loader.do_preprocessing = False # for evaluating the training set
 
 	next_element, training_init_op, validation_init_op, test_init_op = \
@@ -53,26 +53,28 @@ def test(folder_log, modelname):
 
 	# Define Model
 	model = taxonomy_model.taxonomy_model(inputs=batch_image,
-	                                      true_labels=batch_label,
-	                                      input_size=PARAMS.image_size,
-	                                      batch_size=PARAMS.batch_size,
-	                                      taxonomy_nums=len(grasp_loader.label_order), #len(grasp_loader.classes_numbers),
-	                                      taxonomy_classes=grasp_loader.classes_numbers,
-	                                      resnet_version=PARAMS.resnet_version,
-	                                      resnet_pretrained_path=PARAMS.resnet_path,
-	                                      resnet_exclude=PARAMS.resnet_exclude,
-	                                      trainable_scopes=PARAMS.trainable_scopes,
-	                                      extra_global_feature=True,
-	                                      taxonomy_loss=True,
-	                                      learning_rate=PARAMS.learning_rate,
-	                                      num_samples=len(grasp_loader.train_meaningful_jpg_names),
-	                                      beta=PARAMS.beta,
-	                                      taxonomy_weights=[1.0, 1.0, 1.0, 1.0],
-	                                      all_label=None,
-	                                      all_value=None,
-	                                      batch_weight_range=[1.0, 1.0],
-	                                      is_mode='train'
-	                                      )
+										  true_labels=batch_label,
+										  input_size=PARAMS.image_size,
+										  batch_size=PARAMS.batch_size,
+										  taxonomy_nums=len(grasp_loader.label_order),
+										  # len(grasp_loader.classes_numbers),
+										  taxonomy_classes=grasp_loader.classes_numbers,
+										  resnet_version=PARAMS.resnet_version,
+										  resnet_pretrained_path=PARAMS.resnet_path,
+										  resnet_exclude=PARAMS.resnet_exclude,
+										  trainable_scopes=PARAMS.trainable_scopes,
+										  extra_global_feature=True,
+										  taxonomy_loss=None,
+										  learning_rate=PARAMS.learning_rate,
+										  num_samples=len(grasp_loader.train_info),
+										  beta=PARAMS.beta,
+										  taxonomy_weights=[1.0, 1.0, 1.0, 1.0],
+										  all_label=None,
+										  all_value=None,
+										  batch_weight_range=[1.0, 1.0],
+										  optimizer=PARAMS.optimizer,
+										  is_mode='train'
+										  )
 	all_inputs, end_point, losses, eval_value, eval_update, eval_reset = \
 		model.build_model()
 
@@ -86,7 +88,7 @@ def test(folder_log, modelname):
 	config.gpu_options.visible_device_list = '1' #PARAMS.gpu_num
 
 	# Create a saver to save and restore all the variables.
-	saver = tf.train.Saver()
+	# saver = tf.train.Saver()
 
 	with tf.Session(config=config) as sess:
 
@@ -111,7 +113,7 @@ def test(folder_log, modelname):
 
 		# Test the model with test_dataset
 		# initiate the batch extraction using tf.data.Dataset
-		sess.run(test_init_op) #training_init_op
+		sess.run(test_init_op) #validation_init_op
 
 		while (True):
 			try:
@@ -127,6 +129,7 @@ def test(folder_log, modelname):
 									  model.vgg19_training_flag: False,
 									  model.vgg_dropout: 1.0})
 
+				# print('batch_labels_size:', update['labels'][:-1])
 				print('Accuracy_top1:', update['eval_update']['Accuracy_top1'], 'Accuracy_top3:', update['eval_update']['Accuracy_top3'])
 
 				result_array = [[update['labels'][i], update['topk'][i]] for i in range(len(update['labels']))]
