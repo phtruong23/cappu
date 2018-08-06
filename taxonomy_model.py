@@ -198,27 +198,29 @@ class taxonomy_model(object):
 
 			return end_points
 
-	def resnet_fc(self, net, num_classes, scope = ''):
+	def resnet_fc(self, net, num_classes, global_pool=True, scope = ''):
 
 		with slim.arg_scope(partial_vgg.vgg_arg_scope()):
 			with tf.variable_scope(scope, 'resnet_fc') as sc:
 				end_points_collection = sc.original_name_scope + '_end_points'
 				end_points = slim.utils.convert_collection_to_dict(end_points_collection)
 
-			# Global average pooling.
-			net = tf.reduce_mean(net, [1, 2], name='pool5', keep_dims=True)
-			end_points['global_pool'] = net
+			if global_pool:
+				# Global average pooling.
+				net = tf.reduce_mean(net, [1, 2], name='pool5', keep_dims=True)
+				end_points['global_pool'] = net
 
-			net = slim.conv2d(net, num_classes, [1, 1], activation_fn=None,
-							  normalizer_fn=None, scope='logits')
-			end_points[sc.name + '/fc8'] = net
+			if num_classes:
+				net = slim.conv2d(net, num_classes, [1, 1], activation_fn=None,
+								  normalizer_fn=None, scope='logits')
+				end_points[sc.name + '/fc8'] = net
 
-			# end_points[sc.name + '/fc8/squeezed'] = net
+				# end_points[sc.name + '/fc8/squeezed'] = net
 
-			net = tf.squeeze(net, [1, 2], name='SpatialSqueeze')
-			end_points[sc.name + '/fc8/squeezed'] = net
+				net = tf.squeeze(net, [1, 2], name='SpatialSqueeze')
+				end_points[sc.name + '/fc8/squeezed'] = net
 
-			end_points['predictions'] = slim.softmax(net, scope='predictions')
+				end_points['predictions'] = slim.softmax(net, scope='predictions')
 
 			return end_points
 
@@ -237,23 +239,23 @@ class taxonomy_model(object):
 
 		self.stage_inputs.append(self.resnet_partial_mid)
 
-		# with slim.arg_scope(partial_vgg.vgg_arg_scope()):
-		# 	for i in range(0, self.taxonomy_nums):
-		# 		self.stage_outputs.append(self.partial_vgg_stage(self.stage_inputs[i],
-		# 														 num_classes=self.taxonomy_classes[i],
-		# 														 scope=(('stage_%d') % i),
-		# 														 num_filters=int(4096),  # int(4096/(i*i+1)/10),
-		# 														 extra_global_features=self.extra_global_feature,
-		# 														 end_global=self.resnet_partial))
-		#
-		# 		if i < (self.taxonomy_nums - 1):
-		# 			with tf.variable_scope((('stage_%d') % i)) as sc:
-		# 				next_input_from_global = slim.conv2d(self.resnet_partial_mid, 512, [1, 1], scope='trans_fc')
-		# 				next_input_from_stage = self.stage_outputs[i][(('stage_%d') % i) + '/repeat']
-		#
-		# 				next_input = tf.concat([next_input_from_global, next_input_from_stage], axis=3)
-		#
-		# 				self.stage_inputs.append(next_input)
+		with slim.arg_scope(partial_vgg.vgg_arg_scope()):
+			for i in range(0, self.taxonomy_nums):
+				self.stage_outputs.append(self.partial_vgg_stage(self.stage_inputs[i],
+																 num_classes=self.taxonomy_classes[i],
+																 scope=(('stage_%d') % i),
+																 num_filters=int(4096),  # int(4096/(i*i+1)/10),
+																 extra_global_features=self.extra_global_feature,
+																 end_global=self.resnet_partial))
+
+				if i < (self.taxonomy_nums - 1):
+					with tf.variable_scope((('stage_%d') % i)) as sc:
+						next_input_from_global = slim.conv2d(self.resnet_partial_mid, 512, [1, 1], scope='trans_fc')
+						next_input_from_stage = self.stage_outputs[i][(('stage_%d') % i) + '/repeat']
+
+						next_input = tf.concat([next_input_from_global, next_input_from_stage], axis=3)
+
+						self.stage_inputs.append(next_input)
 
 		############ option 2: only insert fully connected layers from vgg
 		# with slim.arg_scope(partial_vgg.vgg_arg_scope()):
@@ -274,9 +276,9 @@ class taxonomy_model(object):
 		# 				self.stage_inputs.append(next_input)
 
 		############ option 3: insert fully conected layers from resnet
-		with slim.arg_scope(partial_vgg.vgg_arg_scope()):
-			self.stage_outputs.append(self.resnet_fc(self.stage_inputs[0], self.taxonomy_classes[0],
-													scope=(('stage_%d') % 0)))
+		# with slim.arg_scope(partial_resnet.resnet_arg_scope()):
+		# 	self.stage_outputs.append(self.resnet_fc(self.stage_inputs[0], self.taxonomy_classes[0],
+		# 											scope=(('stage_%d') % 0)))
 
 		self.net_losses, self.eval_values, self.eval_updates, self.reset_op = [], [], [], []
 		if self.is_mode == 'train':
@@ -524,3 +526,13 @@ class taxonomy_model(object):
 											 ('stage_%d/fc8/squeezed') % (self.taxonomy_nums - 1)], int(k))
 
 		return predictions
+
+
+
+
+
+
+
+
+
+

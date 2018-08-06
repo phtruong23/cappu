@@ -1,5 +1,3 @@
-from __future__ import division
-
 import csv
 import cv2
 import imageio
@@ -24,54 +22,54 @@ csv_subject_folder_names = ['1. Subject 1',
 							'13. Subject 13']
 
 # Number of classes : 13
-csv_subject_label_names = ['subject 1',
-						   'subject 2',
-						   'subject 3',
-						   'subject 4',
-						   'subject 5',
-						   'subject 6',
-						   'subject 7',
-						   'subject 8',
-						   'subject 9',
-						   'subject 10',
-						   'subject 11',
-						   'subject 12',
-						   'subject 13']
+csv_subject_label_names = [ 'subject 1',
+							'subject 2',
+							'subject 3',
+							'subject 4',
+							'subject 5',
+							'subject 6',
+							'subject 7',
+							'subject 8',
+							'subject 9',
+							'subject 10',
+							'subject 11',
+							'subject 12',
+							'subject 13']
 
 # Number of classes : 32
-grasp_names = ['sphere 3 finger',
-			   'parallel extension',
-			   'large diameter',
-			   'power sphere',
-			   'prismatic 4 finger',
-			   'lateral tripod',
-			   'tripod',
-			   'push',
-			   'prismatic 2 finger',
-			   'tip pinch',
-			   'lateral',
-			   'small diameter',
-			   'extension type',
-			   'adducted thumb',
-			   'stick',
-			   'fixed hook',
-			   'palmar pinch',
-			   'inferior pincer',
-			   'precision sphere',
-			   'quadpod',
-			   'prismatic 3 finger',
-			   'index finger extension',
-			   'sphere 4 finger',
-			   'power disk',
-			   'writing tripod',
-			   'medium wrap',
-			   'adduction grip',
-			   'ventral',
-			   'precision disk',
-			   'lift',
-			   'light tool',
-			   'palmar'
-			   ]
+grasp_names = [ 'sphere 3 finger',
+				'parallel extension',
+				'large diameter',
+				'power sphere',
+				'prismatic 4 finger',
+				'lateral tripod',
+				'tripod',
+				'push',
+				'prismatic 2 finger',
+				'tip pinch',
+				'lateral',
+				'small diameter',
+				'extension type',
+				'adducted thumb',
+				'stick',
+				'fixed hook',
+				'palmar pinch',
+				'inferior pincer',
+				'precision sphere',
+				'quadpod',
+				'prismatic 3 finger',
+				'index finger extension',
+				'sphere 4 finger',
+				'power disk',
+				'writing tripod',
+				'medium wrap',
+				'adduction grip',
+				'ventral',
+				'precision disk',
+				'lift',
+				'light tool',
+				'palmar'
+			]
 
 # Number of classes : 3
 adl_names = ['cooking',
@@ -104,10 +102,10 @@ virtual_fingers_names = ['2',
 						 'null']
 
 # Number of classes : 3
-thumb_names = ['Abd',
-			   'Add',
-			   'null'
-			   ]
+thumb_names = [ 'Abd',
+				'Add',
+				'null'
+				]
 
 class csv_loader(object):
 	def __init__(self,
@@ -119,7 +117,7 @@ class csv_loader(object):
 				 train_list=[0, 1, 2, 3, 4, 5, 6, 7, 8],
 				 val_list=[9],
 				 test_list=[10, 11, 12],
-	             label_order=None,
+	 label_order=None,
 				 batch_size=10,
 				 max_hue_delta=None,
 				 saturation_range=None,
@@ -138,11 +136,11 @@ class csv_loader(object):
 		self.virtual_fingers_names = virtual_fingers_names
 		self.thumb_names = thumb_names
 		self.classes_numbers = np.array([len(self.grasp_names),
-		                                 len(self.adl_names),
-		                                 len(self.opptype_names),
-		                                 len(self.pip_names),
-		                                 len(self.virtual_fingers_names),
-		                                 len(self.thumb_names)])
+		len(self.adl_names),
+		len(self.opptype_names),
+		len(self.pip_names),
+		len(self.virtual_fingers_names),
+		len(self.thumb_names)])
 
 		self.label_order = label_order
 
@@ -180,67 +178,8 @@ class csv_loader(object):
 			# It is also fast enough
 			self.train_meaningful_jpg_names, self.val_meaningful_jpg_names, self.test_meaningful_jpg_names = \
 				self.get_divided_meaningful_jpg_filenames_from_annotations(self.train_list,
-																		   self.val_list,
-																		   self.test_list)
-
-
-	def get_annotation_sorted_by_label(self, label, label_names):
-
-		# train_meaningful_names = [('%s.%s.mp4.%d.jpg' % (row['Subject'],
-		#                                                  row['Video'].split('.')[0],
-		#                                                  i))
-		#                           for row in self.all_annotations
-		#                           for sub_num in train_sub_list
-		#                           for i in range(int(row['StartFrame']), int(row['EndFrame']))
-		#                           if self.csv_subject_label_names[sub_num] == row['Subject']
-		#                           ]
-
-		total_list = []
-		for i, name in enumerate(label_names):
-			temp_list = []
-			for row in self.all_annotations:
-				if name == row[label]:
-					temp_list.append(row)
-			total_list.append(temp_list)
-
-		return total_list
-
-	# ratio must has 3 elements : [training_ratio, validation_ratio, testing_ratio]
-	# The sum of these has to be 1.
-	def get_jpg_filenames_labels_from_sorted_annotations(self, total_list, ratio):
-
-		train_names = []
-		train_labels = []
-		val_names = []
-		val_labels = []
-		test_names = []
-		test_labels = []
-		for sub in total_list:
-			for row in sub:
-				cur_range = int(row['EndFrame']) - int(row['StartFrame'])
-				train_ren = int(cur_range * ratio[0])
-				val_ren = int(cur_range * ratio[1])
-				test_ren = int(cur_range * ratio[2])
-				for i in np.random.permutation(range(int(row['StartFrame']), int(row['EndFrame']))):
-				# for i in range(int(row['StartFrame']), int(row['EndFrame'])):
-					cur_name = ('%s.%s.mp4.%d.jpg' % (row['Subject'], row['Video'].split('.')[0], i))
-					cur_label = {'Grasp': row['Grasp'],
-					             'ADL': row['ADL'],
-					             'OppType': row['OppType'],
-					             'PIP': row['PIP'],
-					             'VirtualFingers': row['VirtualFingers'],
-					             'Thumb': row['Thumb']}
-					if i >= int(row['StartFrame']) and i < (int(row['StartFrame']) + train_ren):
-						train_names.append(cur_name)
-						train_labels.append(cur_label)
-					elif i >= (int(row['StartFrame']) + train_ren) and i < (int(row['StartFrame']) + train_ren + val_ren):
-						val_names.append(cur_name)
-						val_labels.append(cur_label)
-					elif i >= (int(row['StartFrame']) + train_ren + val_ren) and i < int(row['EndFrame']):
-						test_names.append(cur_name)
-						test_labels.append(cur_label)
-
-		return train_names, train_labels, val_names, val_labels, test_names, test_labels
+																		self.val_list,
+																		self.test_list)
 
 
 
@@ -292,7 +231,6 @@ class csv_loader(object):
 			print('processing... : %d, %s, %d'% (subject_num, mp4_name, i + 1))
 			save_filename = '%s.%s.%d.jpg' % (self.csv_subject_label_names[subject_num],
 											  mp4_name, i + 1)
-
 			# imageio.imwrite('%s/%s' % (save_path, save_filename), im)
 			cv2.imwrite('%s/%s' % (save_path, save_filename), im)
 
@@ -311,11 +249,11 @@ class csv_loader(object):
 		split_name = filename.split('.')
 
 		labels = [{'Grasp': row['Grasp'],
-				   'ADL': row['ADL'],
-				   'OppType': row['OppType'],
-				   'PIP': row['PIP'],
-				   'VirtualFingers': row['VirtualFingers'],
-				   'Thumb': row['Thumb']}
+				'ADL': row['ADL'],
+				'OppType': row['OppType'],
+				'PIP': row['PIP'],
+				'VirtualFingers': row['VirtualFingers'],
+				'Thumb': row['Thumb']}
 				  for row in self.all_annotations
 				  if (split_name[0] == row['Subject']) &
 				  (split_name[1] == row['Video'].split('.')[0]) &
@@ -329,7 +267,7 @@ class csv_loader(object):
 		# Assume that the all images has (1280 x 720 - w x h)
 		sequence_frames = np.zeros(shape=(len(range(each_row['StartFrame'], each_row['EndFrame'])),
 										  720, 1280, 3),
-								   dtype=np.float32)
+								dtype=np.float32)
 		movie_name = each_row['Video'].split('.')[0]
 		for i in range(int(each_row['StartFrame']), int(each_row['EndFrame'])):
 			each_filename = ('%s/%s/%s.%s.mp4.%d.jpg' % (self.data_path,
@@ -357,8 +295,8 @@ class csv_loader(object):
 	# Meaningful means that these names has annotations
 	def get_all_meaningful_jpg_filenames_from_annotations(self):
 		meaningful_names = [('%s.%s.mp4.%d.jpg' % (row['Subject'],
-												   row['Video'].split('.')[0],
-												   i))
+												row['Video'].split('.')[0],
+												i))
 							for row in self.all_annotations
 							for i in range(int(row['StartFrame']), int(row['EndFrame']))
 							]
@@ -372,7 +310,7 @@ class csv_loader(object):
 														 i))
 								  for row in self.all_annotations
 								  for sub_num in train_sub_list
-								  for i in range(int(row['StartFrame']), int(row['EndFrame']))
+								  for i in range(int(row['StartFrame']), int(row['EndFrame'])-1)
 								  if self.csv_subject_label_names[sub_num] == row['Subject']
 								  ]
 
@@ -491,8 +429,8 @@ class csv_loader(object):
 		if self.saturation_range is not None:
 			# random saturation
 			image = tf.image.random_saturation(image,
-											   lower=self.saturation_range[0],
-											   upper=self.saturation_range[1])
+											lower=self.saturation_range[0],
+											upper=self.saturation_range[1])
 
 		if self.max_bright_delta is not None:
 			# random brightness
@@ -531,7 +469,6 @@ class csv_loader(object):
 				tf.py_func(self._read_per_image_val, [num], [tf.float32, tf.int64])))
 
 			val_set = val_set.batch(self.batch_size)
-			# val_set = val_set.apply(tf.contrib.data.batch_and_drop_remainder(self.batch_size))
 
 		with tf.name_scope('test_dataset'):
 			test_size = len(self.test_meaningful_jpg_names)
@@ -543,20 +480,18 @@ class csv_loader(object):
 				tf.py_func(self._read_per_image_test, [num], [tf.float32, tf.int64])))
 
 			test_set = test_set.batch(self.batch_size)
-			# test_set = test_set.apply(tf.contrib.data.batch_and_drop_remainder(self.batch_size))
 
 		with tf.name_scope('dataset_initializer'):
 			# iterator = tf.data.Iterator.from_structure(train_set.output_types, train_set.output_shapes)
 			iterator = tf.data.Iterator.from_structure(train_set.output_types,
-			                                           (tf.TensorShape([None,
-			                                                            self.resize_image_size[0],
-			                                                            self.resize_image_size[1],
-			                                                            3]),
-			                                            tf.TensorShape([None,
-			                                                            len(self.classes_numbers)])
-			                                            )
-			                                           )
-
+			 (tf.TensorShape([None,
+			self.resize_image_size[0],
+			self.resize_image_size[1],
+			3]),
+			  tf.TensorShape([None,
+			len(self.classes_numbers)])
+			  )
+			 )
 			next_element = iterator.get_next()
 
 			training_init_op = iterator.make_initializer(train_set, name='train_set_initializer')

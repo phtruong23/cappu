@@ -120,7 +120,7 @@ def train():
 				try:
 					step_time = datetime.datetime.now()
 
-					imgs, lbls = sess.run([batch_image, batch_label]) # measure runtime of loading images
+					imgs, lbls = sess.run([batch_image, batch_label])
 
 					# # extract batch and training
 					# update = sess.run(
@@ -138,10 +138,9 @@ def train():
 					# print('losses:', update['losses'], 'accuracy:', update['eval_update']['Accuracy_top1'])
 					# # print('losses:', update['losses'])
 
-					# # summary_writer.add_summary(update['summary'], total_step_num)
-					# # summary_writer.flush()
-					# total_step_num += 1
-
+					# summary_writer.add_summary(update['summary'], total_step_num)
+					# summary_writer.flush()
+					total_step_num += 1
 					print('Step training time: {}'.format(datetime.datetime.now() - step_time))
 
 				except tf.errors.OutOfRangeError:
