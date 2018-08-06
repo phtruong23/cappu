@@ -5,8 +5,8 @@ import csv
 import datetime
 import taxonomy_model
 
-# import Grasp_csv_Loader as GraspLoader # load batch data
-import FullDataset_GraspLoader as GraspLoader # load all dataset to RAM
+import Grasp_csv_Loader as GraspLoader # load batch data
+# import FullDataset_GraspLoader as GraspLoader # load all dataset to RAM
 from params import PARAMS
 
 # Original order of batch label is :
@@ -65,6 +65,7 @@ def train():
 	                                      all_label=None,
 	                                      all_value=None,
 	                                      batch_weight_range=[1.0, 1.0],
+										  optimizer=PARAMS.optimizer,
 	                                      is_mode='train'
 	                                      )
 	all_inputs, end_point, losses, eval_value, eval_update, eval_reset = \
