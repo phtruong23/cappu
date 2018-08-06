@@ -22,7 +22,6 @@ label_order = [0]
 
 
 def train():
-
 	grasp_loader = GraspLoader.csv_loader(data_path=PARAMS.csv_path,
 											   csv_filename=PARAMS.csv_filename,
 											   save_folder=PARAMS.save_folder,

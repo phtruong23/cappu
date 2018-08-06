@@ -5,8 +5,7 @@ import csv
 import datetime
 import taxonomy_model
 
-import Grasp_csv_Loader as GraspLoader # load batch data
-# import FullDataset_GraspLoader as GraspLoader # load all dataset to RAM
+import Grasp_csv_Loader_v2 as GraspLoader # load batch data
 from params import PARAMS
 
 # Original order of batch label is :
@@ -23,21 +22,23 @@ label_order = [0]
 
 def train():
 	grasp_loader = GraspLoader.csv_loader(data_path=PARAMS.csv_path,
-											   csv_filename=PARAMS.csv_filename,
-											   save_folder=PARAMS.save_folder,
-	                                           is_saved=True,
-	                                           resize_image_size=PARAMS.image_size,
-	                                           train_list=PARAMS.train_list,
-	                                           val_list=PARAMS.val_list,
-	                                           test_list=PARAMS.test_list,
-	                                           label_order=label_order,
-	                                           batch_size=PARAMS.batch_size,
-	                                           max_hue_delta=PARAMS.max_hue_delta,
-	                                           saturation_range=PARAMS.saturation_range,
-	                                           max_bright_delta=PARAMS.max_bright_delta,
-	                                           max_contrast_delta=PARAMS.max_contrast_delta,
-	                                           is_training=True
-	                                           )
+											csv_filename=PARAMS.csv_filename,
+											save_folder=PARAMS.save_folder,
+											is_saved=True,
+											resize_image_size=PARAMS.image_size,
+											train_subject_list=PARAMS.train_list,
+											val_subject_list=PARAMS.val_list,
+											test_subject_list=PARAMS.test_list,
+											label_order=label_order,
+											batch_size=PARAMS.batch_size,
+											trans_range=PARAMS.trans_range,
+											rotate_range=PARAMS.rotate_range,
+											max_hue_delta=PARAMS.max_hue_delta,
+											saturation_range=PARAMS.saturation_range,
+											max_bright_delta=PARAMS.max_bright_delta,
+											max_contrast_delta=PARAMS.max_contrast_delta,
+											is_training=True
+											)
 
 	next_element, training_init_op, validation_init_op, test_init_op = \
 		grasp_loader.initialization_dataset()
@@ -46,33 +47,33 @@ def train():
 
 	# Define Model
 	model = taxonomy_model.taxonomy_model(inputs=batch_image,
-	                                      true_labels=batch_label,
-	                                      input_size=PARAMS.image_size,
-	                                      batch_size=PARAMS.batch_size,
-	                                      taxonomy_nums=len(grasp_loader.label_order), #len(grasp_loader.classes_numbers),
-	                                      taxonomy_classes=grasp_loader.classes_numbers,
-	                                      resnet_version=PARAMS.resnet_version,
-	                                      resnet_pretrained_path=PARAMS.resnet_path,
-	                                      resnet_exclude=PARAMS.resnet_exclude,
-	                                      trainable_scopes=PARAMS.trainable_scopes,
-	                                      extra_global_feature=True,
-	                                      taxonomy_loss=True,
-	                                      learning_rate=PARAMS.learning_rate,
-	                                      num_samples=len(grasp_loader.train_meaningful_jpg_names),
-	                                      beta=PARAMS.beta,
-	                                      taxonomy_weights=[1.0, 1.0, 1.0, 1.0],
-	                                      all_label=None,
-	                                      all_value=None,
-	                                      batch_weight_range=[1.0, 1.0],
-										  optimizer=PARAMS.optimizer,
-	                                      is_mode='train'
-	                                      )
+											true_labels=batch_label,
+											input_size=PARAMS.image_size,
+											batch_size=PARAMS.batch_size,
+											taxonomy_nums=len(grasp_loader.label_order), #len(grasp_loader.classes_numbers),
+											taxonomy_classes=grasp_loader.classes_numbers,
+											resnet_version=PARAMS.resnet_version,
+											resnet_pretrained_path=PARAMS.resnet_path,
+											resnet_exclude=PARAMS.resnet_exclude,
+											trainable_scopes=PARAMS.trainable_scopes,
+											extra_global_feature=True,
+											taxonomy_loss=True,
+											learning_rate=PARAMS.learning_rate,
+											num_samples=len(grasp_loader.train_info),
+											beta=PARAMS.beta,
+											taxonomy_weights=[1.0, 1.0, 1.0, 1.0],
+											all_label=None,
+											all_value=None,
+											batch_weight_range=[1.0, 1.0],
+											optimizer=PARAMS.optimizer,
+											is_mode='train'
+											)
 	all_inputs, end_point, losses, eval_value, eval_update, eval_reset = \
 		model.build_model()
 
 	train_summary_op = model.get_summary_op()
 
-
+	test_summary_op = model.get_summary_op_test()
 
 	config = tf.ConfigProto()
 	# config.gpu_options.per_process_gpu_memory_fraction = 0.5
@@ -104,7 +105,7 @@ def train():
 		model.resnet_restore(sess)
 
 		summary_writer = tf.summary.FileWriter('%s' % (folder_log), sess.graph)
-		total_step_num = 0
+		total_step_num, test_step_num = 0, 0
 		best_acc = 0.0
 
 		for epoch in range(PARAMS.epochs):
@@ -123,13 +124,14 @@ def train():
 						feed_dict={
 							# inputs: images,
 							# 	true_labels: labels[:,int(-args.layer):],
-							model.resnet_training_flag: True,
-							model.vgg19_training_flag: False,
+							model.resnet_training_flag: False,
+							model.vgg19_training_flag: True,
 							model.vgg_dropout: 0.5})
 
 					if total_step_num % PARAMS.print_freq==0:
 						# print(len(update['all_inputs']), len(update['all_outputs']))
-						print('step:', total_step_num, 'losses:', update['losses'], 'accuracy:', update['eval_update']['Accuracy_top1'])
+						print('losses:', update['losses'], 'accuracy (top1, top3):',
+							  update['eval_update']['Accuracy_top1'], update['eval_update']['Accuracy_top3'])
 						# print('losses:', update['losses'])
 
 					summary_writer.add_summary(update['summary'], total_step_num)
@@ -144,10 +146,17 @@ def train():
 			print('Epoch %d done. ' % (epoch + 1))
 			print('Training time: {}'.format(datetime.datetime.now() - current_time))
 
+			# save model after each epoch
+			checkpoint_file = os.path.join(folder_log, 'Grasp.ckpt')
+			saver.save(sess, checkpoint_file)
+			print('Model has been saved.')
+
 			# reset all local variabels so that the streaming metrics reset new calculation
 			sess.run(eval_reset)
 
+			################################################################################
 			# Validate the model with val_dataset
+			current_time = datetime.datetime.now()  # measure training time for each epoch
 			# initiate the batch extraction using tf.data.Dataset
 			sess.run(validation_init_op)
 
@@ -155,7 +164,8 @@ def train():
 				try:
 					# extract batch and training
 					update = sess.run({'all_inputs': all_inputs, 'all_outputs': end_point,
-									   'losses': losses, 'eval_update': eval_update
+									   'losses': losses, 'eval_update': eval_update,
+									   'summary':test_summary_op
 									   },
 									  feed_dict={
 										  # inputs: images,
@@ -164,8 +174,14 @@ def train():
 										  model.vgg19_training_flag: False,
 										  model.vgg_dropout: 1.0})
 
+					summary_writer.add_summary(update['summary'], test_step_num)
+					summary_writer.flush()
+					test_step_num += 1
+
 				except tf.errors.OutOfRangeError:
 					break
+
+			print('Validation time: {}'.format(datetime.datetime.now() - current_time))
 
 			val_metrics = sess.run(eval_value)
 
@@ -186,15 +202,59 @@ def train():
 			# reset all local variabels so that the streaming metrics reset new calculation
 			sess.run(eval_reset)
 
-			if val_metrics['Accuracy_top1']['stage_%s'%(len(grasp_loader.label_order)-1)] > best_acc:
-				best_acc = val_metrics['Accuracy_top1']['stage_%s'%(len(grasp_loader.label_order)-1)]
-				# save trained model
-				checkpoint_file = os.path.join(folder_log, 'BestGraspResnet152.ckpt')
-				saver.save(sess, checkpoint_file)
+			################################################################################
+			# Evaluate the model with test_dataset
+			current_time = datetime.datetime.now()  # measure training time for each epoch
+			# initiate the batch extraction using tf.data.Dataset
+			sess.run(test_init_op)
 
-			# save model after each epoch
-			checkpoint_file = os.path.join(folder_log, 'Grasp.ckpt')
-			saver.save(sess, checkpoint_file)
+			while (True):
+				try:
+					# extract batch and training
+					update = sess.run({'all_inputs': all_inputs, 'all_outputs': end_point,
+									   'losses': losses, 'eval_update': eval_update,
+									   'summary': test_summary_op
+									   },
+									  feed_dict={
+										  # inputs: images,
+										  # 	true_labels: labels[:,int(-args.layer):],
+										  model.resnet_training_flag: False,
+										  model.vgg19_training_flag: False,
+										  model.vgg_dropout: 1.0})
+
+					summary_writer.add_summary(update['summary'], test_step_num)
+					summary_writer.flush()
+					test_step_num += 1
+
+				except tf.errors.OutOfRangeError:
+					break
+
+			print('Test time: {}'.format(datetime.datetime.now() - current_time))
+
+			test_metrics = sess.run(eval_value)
+
+			print({name: test_metrics[name]['stage_0'] for name in test_metrics.keys()})
+
+			# convert result in to np array and save to file
+			test_metrics_arr = [[name] + [test_metrics[name][stage] for stage in test_metrics[name].keys()]
+							   for name in test_metrics.keys()]
+			metric_names = list(test_metrics.keys())
+			stages = ['Metrics'] + list(test_metrics[metric_names[0]].keys())
+			test_metrics_arr = [stages] + test_metrics_arr
+
+			with open(folder_log + '/test_evaluation.csv', "a") as output:
+				writer = csv.writer(output, lineterminator='\n')
+				writer.writerows([['Epoch %s' % epoch]])
+				writer.writerows(test_metrics_arr)
+
+			# reset all local variabels so that the streaming metrics reset new calculation
+			sess.run(eval_reset)
+
+			if test_metrics['Accuracy_top1']['stage_%s'%(len(grasp_loader.label_order)-1)] > best_acc:
+				best_acc = test_metrics['Accuracy_top1']['stage_%s'%(len(grasp_loader.label_order)-1)]
+				# save trained model
+				checkpoint_file = os.path.join(folder_log, 'BestGraspResnet%s.ckpt' % PARAMS.resnet_version)
+				saver.save(sess, checkpoint_file)
 
 
 if __name__ == '__main__':
