@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 import os
 import datetime
-import taxonomy_model
+import taxonomy_model_v2
 
 # import Grasp_csv_Loader
 import Grasp_csv_Loader_v2
@@ -33,6 +33,7 @@ def train():
 	                                              divided_npz_name='divided_dataset.npz',
 	                                              label_order=label_order,
 	                                              batch_size=PARAMS.batch_size,
+	                                              flip_flag=PARAMS.flip_flag,
 	                                              trans_range=PARAMS.trans_range,
 	                                              rotate_range=PARAMS.rotate_range,
 	                                              max_hue_delta=PARAMS.max_hue_delta,
@@ -48,32 +49,37 @@ def train():
 	batch_image, batch_label = next_element
 
 	# Define Model
-	model = taxonomy_model.taxonomy_model(inputs=batch_image,
-	                                      true_labels=batch_label,
-	                                      input_size=PARAMS.image_size,
-	                                      batch_size=PARAMS.batch_size,
-	                                      taxonomy_nums=len(grasp_loader.classes_numbers),
-	                                      taxonomy_classes=grasp_loader.classes_numbers,
-	                                      resnet_version=PARAMS.resnet_version,
-	                                      resnet_pretrained_path=PARAMS.resnet_path,
-	                                      resnet_exclude=PARAMS.resnet_exclude,
-	                                      trainable_scopes=PARAMS.trainable_scopes,
-	                                      extra_global_feature=True,
-	                                      taxonomy_loss=True,
-	                                      learning_rate=PARAMS.learning_rate,
-	                                      num_samples=len(grasp_loader.train_info),
-	                                      beta=PARAMS.beta,
-	                                      taxonomy_weights=[1.0, 1.0, 1.0, 1.0, 1.0],
-	                                      all_label=None,
-	                                      all_value=None,
-	                                      batch_weight_range=[1.0, 1.0],
-	                                      optimizer=PARAMS.optimizer,
-	                                      is_mode='train'
-	                                      )
+	model = taxonomy_model_v2.taxonomy_model(inputs=batch_image,
+	                                         true_labels=batch_label,
+	                                         input_size=PARAMS.image_size,
+	                                         batch_size=PARAMS.batch_size,
+	                                         taxonomy_nums=len(grasp_loader.classes_numbers),
+	                                         taxonomy_classes=grasp_loader.classes_numbers,
+	                                         resnet_version=PARAMS.resnet_version,
+	                                         resnet_pretrained_path=PARAMS.resnet_path,
+	                                         resnet_exclude=PARAMS.resnet_exclude,
+	                                         trainable_scopes=PARAMS.trainable_scopes,
+	                                         extra_global_feature=PARAMS.extra_global_feature_flag,
+	                                         taxonomy_loss=PARAMS.taxonomy_loss,
+	                                         learning_rate=PARAMS.learning_rate,
+	                                         num_samples=len(grasp_loader.train_info),
+	                                         beta=PARAMS.beta,
+	                                         taxonomy_weights=[1.0, 1.0, 1.0, 1.0, 1.0],
+	                                         all_label=None,
+	                                         all_value=None,
+	                                         batch_weight_range=[1.0, 1.0],
+	                                         optimizer=PARAMS.optimizer,
+	                                         is_mode='train',
+	                                         divide_loss=PARAMS.divide_loss,
+	                                         vgg_input_from_resnet=PARAMS.vgg_input_from_resnet,
+	                                         vgg_fully_connected_num = PARAMS.vgg_fully_connected_num
+	                                         )
 	all_inputs, end_point, losses, eval_value, eval_update, eval_reset = \
 		model.build_model()
 
 	train_summary_op = model.get_summary_op()
+
+	val_summary_op = model.get_summary_op_val()
 
 	test_summary_op = model.get_summary_op_test()
 
@@ -123,7 +129,9 @@ def train():
 					# extract batch and training
 					each_current_time = datetime.datetime.now()
 					update = sess.run(
-						{'all_inputs': all_inputs, 'all_outputs': end_point, 'update_op': model.update_flag,
+						{'batch_image': batch_image, 'batch_label': batch_label,
+						 'all_inputs': all_inputs, 'all_outputs': end_point,
+						 'update_op': model.update_flag,
 						 'losses': losses, 'eval_update': eval_update,
 						 'summary': train_summary_op},
 						feed_dict={
@@ -162,10 +170,12 @@ def train():
 				while (True):
 					try:
 						# extract batch and training
+						each_current_time = datetime.datetime.now()
 						update = sess.run(
-							{'all_inputs': all_inputs, 'all_outputs': end_point,
+							{'batch_image': batch_image, 'batch_label': batch_label,
+							 'all_inputs': all_inputs, 'all_outputs': end_point,
 							 'losses': losses, 'eval_update': eval_update,
-							 'summary': test_summary_op},
+							 'summary': val_summary_op},
 							feed_dict={
 								# inputs: images,
 								# 	true_labels: labels[:,int(-args.layer):],
@@ -176,7 +186,7 @@ def train():
 						print('losses:', update['losses'], 'accuracy (top1, top3):', update['eval_update']['Accuracy_top1'],
 						      update['eval_update']['Accuracy_top3'])
 						# print('losses:', update['losses'])
-						print('Each iteration time: {}'.format(datetime.datetime.now() - current_time))
+						print('Each iteration time: {}'.format(datetime.datetime.now() - each_current_time))
 
 						summary_writer.add_summary(update['summary'], epoch)
 						summary_writer.flush()
@@ -189,8 +199,45 @@ def train():
 			# reset all local variabels so that the streaming metrics reset new calculation
 			sess.run(eval_reset)
 
-			# checkpoint_file = os.path.join(folder_log, 'Grasp.ckpt')
-			# saver.save(sess, checkpoint_file, global_step=epoch)
+
+			if (epoch % PARAMS.epoch_decay) == 0:
+
+				current_time = datetime.datetime.now()  # measure training time for each epoch
+				# initiate the batch extraction using tf.data.Dataset
+				sess.run(test_init_op)
+
+				while (True):
+					try:
+						# extract batch and training
+						each_current_time = datetime.datetime.now()
+						update = sess.run(
+							{'batch_image': batch_image, 'batch_label': batch_label,
+							 'all_inputs': all_inputs, 'all_outputs': end_point,
+							 'losses': losses, 'eval_update': eval_update,
+							 'summary': test_summary_op},
+							feed_dict={
+								# inputs: images,
+								# 	true_labels: labels[:,int(-args.layer):],
+								model.resnet_training_flag: False,
+								model.vgg19_training_flag: False,
+								model.vgg_dropout: 1.0})
+						# print(len(update['all_inputs']), len(update['all_outputs']))
+						print('losses:', update['losses'], 'accuracy (top1, top3):', update['eval_update']['Accuracy_top1'],
+						      update['eval_update']['Accuracy_top3'])
+						# print('losses:', update['losses'])
+						print('Each iteration time: {}'.format(datetime.datetime.now() - each_current_time))
+
+						summary_writer.add_summary(update['summary'], epoch)
+						summary_writer.flush()
+
+					except tf.errors.OutOfRangeError:
+						break
+
+				print('test time: {}'.format(datetime.datetime.now() - current_time))
+
+			# reset all local variabels so that the streaming metrics reset new calculation
+			sess.run(eval_reset)
+
 
 
 if __name__ == '__main__':

@@ -128,6 +128,7 @@ class csv_loader(object):
 	             divided_npz_name='divided_dataset.npz',
 	             label_order=None,
 				 batch_size=10,
+				 flip_flag=None,
 	             trans_range = None,
 	             rotate_range = None,
 				 max_hue_delta=0.15,
@@ -171,6 +172,7 @@ class csv_loader(object):
 		self.is_divided_saved = is_divided_saved
 		self.divided_npz_name = divided_npz_name
 
+		self.flip_flag = flip_flag
 		self.trans_range = trans_range
 		self.rotate_range = rotate_range
 		self.batch_size = batch_size
@@ -495,6 +497,14 @@ class csv_loader(object):
 
 		return img_translated
 
+	def flip_image(self, img, flag=0):
+		# flag 0 means that horizontal flipping
+		# flag 1 means that vertical flipping
+		# flag -1 means that horizontal&vertical flipping
+		img_flip = cv2.flip(img, flag)
+
+		return img_flip
+
 
 	# This function will be working on the dataset map function
 	def _read_per_image_train(self, num):
@@ -523,7 +533,11 @@ class csv_loader(object):
 
 		img = np.float32(cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))) / 255.0
 
-		# Translate and rotate images with opencv functions
+		# Flip and translate and rotate images with opencv functions
+		if self.flip_flag is not None:
+			flip_num = np.random.randint(0, 2, 1)
+			if flip_num[0] != 1:
+				img = self.flip_image(img, flip_num[0])
 		if self.rotate_range is not None:
 			degree = np.random.randint(low=self.rotate_range[0], high=self.rotate_range[1], size=1)
 			img = self.rotate_image(img, (int(self.resize_image_size[0]), int(self.resize_image_size[1])), degree[0])

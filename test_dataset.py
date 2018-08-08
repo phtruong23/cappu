@@ -4,7 +4,7 @@ import Grasp_csv_Loader_v2
 import numpy as np
 import tensorflow as tf
 
-import taxonomy_model
+import taxonomy_model_v2
 import network_utils
 
 import os
@@ -43,7 +43,13 @@ print(len(total_list), len(total_list[0]))
 train_info, val_info, test_info = \
 	grasp_loader.get_jpg_filenames_labels_from_sorted_annotations(total_list, [0.7, 0.1, 0.2])
 
+print(len(grasp_loader.all_annotations))
+
 print(len(train_info), len(val_info), len(test_info))
+
+print(len(train_info) + len(val_info) + len(test_info))
+
+print(len(grasp_loader.get_all_meaningful_jpg_filenames_from_annotations()))
 
 # grasp_loader.read_frames_and_save_from_mp4(None, 6, 'subject_7_gopro_seg_1.mp4')
 
@@ -69,28 +75,30 @@ print(len(train_info), len(val_info), len(test_info))
 # print(train_info[10]['Filename'])
 # temp_img, temp_label = grasp_loader._read_per_image_train(1000)
 
-next_element, training_init_op, validation_init_op, test_init_op = \
-	grasp_loader.initialization_dataset()
-
-batch_image, batch_label = next_element
-
-config = tf.ConfigProto()
-config.gpu_options.per_process_gpu_memory_fraction = 0.5
-config.gpu_options.allow_growth = True
-config.allow_soft_placement = True
-config.gpu_options.visible_device_list = '0'
-
-with tf.Session(config=config) as sess:
-	sess.run(training_init_op)
-
-	update = sess.run({'batch_image': batch_image, 'batch_label': batch_label})
-	print('training... : ', np.shape(update['batch_image']), np.shape(update['batch_label']))
-
-	temp_image = update['batch_image'][0, :, :, :]
-	print(np.shape(temp_image))
-	temp_image = temp_image[:, :, [2, 1, 0]]
-	cv2.imshow('test', temp_image)
-	cv2.waitKey(10000)
+# next_element, training_init_op, validation_init_op, test_init_op = \
+# 	grasp_loader.initialization_dataset()
+#
+# batch_image, batch_label = next_element
+#
+# config = tf.ConfigProto()
+# config.gpu_options.per_process_gpu_memory_fraction = 0.5
+# config.gpu_options.allow_growth = True
+# config.allow_soft_placement = True
+# config.gpu_options.visible_device_list = '0'
+#
+# with tf.Session(config=config) as sess:
+# 	sess.run(training_init_op)
+#
+# 	update = sess.run({'batch_image': batch_image, 'batch_label': batch_label})
+# 	print('training... : ', np.shape(update['batch_image']), np.shape(update['batch_label']))
+#
+#
+# 	temp_image = update['batch_image'][0, :, :, :]
+#
+# 	temp_image = temp_image[:, :, [2, 1, 0]]
+#
+# 	cv2.imshow('test', temp_image)
+# 	cv2.waitKey(10000)
 
 	# while True:
 	#

@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 import os
 import datetime
-import taxonomy_model
+import taxonomy_model_v1
 
 # import Grasp_csv_Loader
 import Grasp_csv_Loader_v2
@@ -46,28 +46,28 @@ def train():
 	batch_image, batch_label = next_element
 
 	# Define Model
-	model = taxonomy_model.taxonomy_model(inputs=batch_image,
-	                                      true_labels=batch_label,
-	                                      input_size=PARAMS.image_size,
-	                                      batch_size=PARAMS.batch_size,
-	                                      taxonomy_nums=len(grasp_loader.classes_numbers),
-	                                      taxonomy_classes=grasp_loader.classes_numbers,
-	                                      resnet_version=PARAMS.resnet_version,
-	                                      resnet_pretrained_path=PARAMS.resnet_path,
-	                                      resnet_exclude=PARAMS.resnet_exclude,
-	                                      trainable_scopes=PARAMS.trainable_scopes,
-	                                      extra_global_feature=True,
-	                                      taxonomy_loss=True,
-	                                      learning_rate=PARAMS.learning_rate,
-	                                      num_samples=len(grasp_loader.train_info),
-	                                      beta=PARAMS.beta,
-	                                      taxonomy_weights=[1.0, 1.0, 1.0, 1.0, 1.0],
-	                                      all_label=None,
-	                                      all_value=None,
-	                                      batch_weight_range=[1.0, 1.0],
-	                                      optimizer=PARAMS.optimizer,
-	                                      is_mode='train'
-	                                      )
+	model = taxonomy_model_v1.taxonomy_model(inputs=batch_image,
+	                                         true_labels=batch_label,
+	                                         input_size=PARAMS.image_size,
+	                                         batch_size=PARAMS.batch_size,
+	                                         taxonomy_nums=len(grasp_loader.classes_numbers),
+	                                         taxonomy_classes=grasp_loader.classes_numbers,
+	                                         resnet_version=PARAMS.resnet_version,
+	                                         resnet_pretrained_path=PARAMS.resnet_path,
+	                                         resnet_exclude=PARAMS.resnet_exclude,
+	                                         trainable_scopes=PARAMS.trainable_scopes,
+	                                         extra_global_feature=True,
+	                                         taxonomy_loss=True,
+	                                         learning_rate=PARAMS.learning_rate,
+	                                         num_samples=len(grasp_loader.train_info),
+	                                         beta=PARAMS.beta,
+	                                         taxonomy_weights=[1.0, 1.0, 1.0, 1.0, 1.0],
+	                                         all_label=None,
+	                                         all_value=None,
+	                                         batch_weight_range=[1.0, 1.0],
+	                                         optimizer=PARAMS.optimizer,
+	                                         is_mode='train'
+	                                         )
 	all_inputs, end_point, losses, eval_value, eval_update, eval_reset = \
 		model.build_model()
 
