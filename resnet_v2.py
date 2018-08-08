@@ -1,3 +1,42 @@
+# Copyright 2016 The TensorFlow Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+"""Contains definitions for the preactivation form of Residual Networks.
+Residual networks (ResNets) were originally proposed in:
+[1] Kaiming He, Xiangyu Zhang, Shaoqing Ren, Jian Sun
+	Deep Residual Learning for Image Recognition. arXiv:1512.03385
+The full preactivation 'v2' ResNet variant implemented in this module was
+introduced by:
+[2] Kaiming He, Xiangyu Zhang, Shaoqing Ren, Jian Sun
+	Identity Mappings in Deep Residual Networks. arXiv: 1603.05027
+The key difference of the full preactivation 'v2' variant compared to the
+'v1' variant in [1] is the use of batch normalization before every weight layer.
+Typical use:
+   from tensorflow.contrib.slim.nets import resnet_v2
+ResNet-101 for image classification into 1000 classes:
+   # inputs has shape [batch, 224, 224, 3]
+   with slim.arg_scope(resnet_v2.resnet_arg_scope()):
+	  net, end_points = resnet_v2.resnet_v2_101(inputs, 1000, is_training=False)
+ResNet-101 for semantic segmentation into 21 classes:
+   # inputs has shape [batch, 513, 513, 3]
+   with slim.arg_scope(resnet_v2.resnet_arg_scope()):
+	  net, end_points = resnet_v2.resnet_v2_101(inputs,
+												21,
+												is_training=False,
+												global_pool=False,
+												output_stride=16)
+"""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -54,6 +93,7 @@ def bottleneck(inputs, depth, depth_bottleneck, stride, rate=1,
 		return slim.utils.collect_named_outputs(outputs_collections,
 		                                        sc.name,
 		                                        output)
+
 
 def resnet_v2(inputs,
               blocks,
@@ -139,12 +179,11 @@ def resnet_v2(inputs,
 					                    activation_fn=None, normalizer_fn=None):
 						net = resnet_utils.conv2d_same(net, 64, 7, stride=2, scope='conv1')
 					net = slim.max_pool2d(net, [3, 3], stride=2, scope='pool1')
-				net, mid_net = resnet_utils.stack_blocks_dense(net, blocks, output_stride)
+				net = resnet_utils.stack_blocks_dense(net, blocks, output_stride)
 				# This is needed because the pre-activation variant does not have batch
 				# normalization or activation functions in the residual unit output. See
 				# Appendix of [2].
 				net = slim.batch_norm(net, activation_fn=tf.nn.relu, scope='postnorm')
-				#
 				# Convert end_points_collection into a dictionary of end_points.
 				end_points = slim.utils.convert_collection_to_dict(
 					end_points_collection)
@@ -161,8 +200,7 @@ def resnet_v2(inputs,
 						net = tf.squeeze(net, [1, 2], name='SpatialSqueeze')
 						end_points[sc.name + '/spatial_squeeze'] = net
 					end_points['predictions'] = slim.softmax(net, scope='predictions')
-
-				return net, mid_net
+				return net, end_points
 
 
 resnet_v2.default_image_size = 224
@@ -193,15 +231,14 @@ def resnet_v2_block(scope, base_depth, num_units, stride):
 resnet_v2.default_image_size = 224
 
 
-def resnet_v2_partial_50(inputs,
-                         num_classes=None,
-                         is_training=True,
-                         global_pool=True,
-                         output_stride=None,
-                         spatial_squeeze=True,
-                         reuse=None,
-                         scope='resnet_v2_50',
-                         include_root_block=True):
+def resnet_v2_50(inputs,
+                 num_classes=None,
+                 is_training=True,
+                 global_pool=True,
+                 output_stride=None,
+                 spatial_squeeze=True,
+                 reuse=None,
+                 scope='resnet_v2_50'):
 	"""ResNet-50 model of [1]. See resnet_v2() for arg and return description."""
 	blocks = [
 		resnet_v2_block('block1', base_depth=64, num_units=3, stride=2),
@@ -211,22 +248,21 @@ def resnet_v2_partial_50(inputs,
 	]
 	return resnet_v2(inputs, blocks, num_classes, is_training=is_training,
 	                 global_pool=global_pool, output_stride=output_stride,
-	                 include_root_block=include_root_block, spatial_squeeze=spatial_squeeze,
+	                 include_root_block=True, spatial_squeeze=spatial_squeeze,
 	                 reuse=reuse, scope=scope)
 
 
-resnet_v2_partial_50.default_image_size = resnet_v2.default_image_size
+resnet_v2_50.default_image_size = resnet_v2.default_image_size
 
 
-def resnet_v2_partial_101(inputs,
-                          num_classes=None,
-                          is_training=True,
-                          global_pool=True,
-                          output_stride=None,
-                          spatial_squeeze=True,
-                          reuse=None,
-                          scope='resnet_v2_101',
-                          include_root_block=True):
+def resnet_v2_101(inputs,
+                  num_classes=None,
+                  is_training=True,
+                  global_pool=True,
+                  output_stride=None,
+                  spatial_squeeze=True,
+                  reuse=None,
+                  scope='resnet_v2_101'):
 	"""ResNet-101 model of [1]. See resnet_v2() for arg and return description."""
 	blocks = [
 		resnet_v2_block('block1', base_depth=64, num_units=3, stride=2),
@@ -236,22 +272,21 @@ def resnet_v2_partial_101(inputs,
 	]
 	return resnet_v2(inputs, blocks, num_classes, is_training=is_training,
 	                 global_pool=global_pool, output_stride=output_stride,
-	                 include_root_block=include_root_block, spatial_squeeze=spatial_squeeze,
+	                 include_root_block=True, spatial_squeeze=spatial_squeeze,
 	                 reuse=reuse, scope=scope)
 
 
-resnet_v2_partial_101.default_image_size = resnet_v2.default_image_size
+resnet_v2_101.default_image_size = resnet_v2.default_image_size
 
 
-def resnet_v2_partial_152(inputs,
-                          num_classes=None,
-                          is_training=True,
-                          global_pool=True,
-                          output_stride=None,
-                          spatial_squeeze=True,
-                          reuse=None,
-                          scope='resnet_v2_152',
-                          include_root_block=True):
+def resnet_v2_152(inputs,
+                  num_classes=None,
+                  is_training=True,
+                  global_pool=True,
+                  output_stride=None,
+                  spatial_squeeze=True,
+                  reuse=None,
+                  scope='resnet_v2_152'):
 	"""ResNet-152 model of [1]. See resnet_v2() for arg and return description."""
 	blocks = [
 		resnet_v2_block('block1', base_depth=64, num_units=3, stride=2),
@@ -261,8 +296,32 @@ def resnet_v2_partial_152(inputs,
 	]
 	return resnet_v2(inputs, blocks, num_classes, is_training=is_training,
 	                 global_pool=global_pool, output_stride=output_stride,
-	                 include_root_block=include_root_block, spatial_squeeze=spatial_squeeze,
+	                 include_root_block=True, spatial_squeeze=spatial_squeeze,
 	                 reuse=reuse, scope=scope)
 
 
-resnet_v2_partial_152.default_image_size = resnet_v2.default_image_size
+resnet_v2_152.default_image_size = resnet_v2.default_image_size
+
+
+def resnet_v2_200(inputs,
+                  num_classes=None,
+                  is_training=True,
+                  global_pool=True,
+                  output_stride=None,
+                  spatial_squeeze=True,
+                  reuse=None,
+                  scope='resnet_v2_200'):
+	"""ResNet-200 model of [2]. See resnet_v2() for arg and return description."""
+	blocks = [
+		resnet_v2_block('block1', base_depth=64, num_units=3, stride=2),
+		resnet_v2_block('block2', base_depth=128, num_units=24, stride=2),
+		resnet_v2_block('block3', base_depth=256, num_units=36, stride=2),
+		resnet_v2_block('block4', base_depth=512, num_units=3, stride=1),
+	]
+	return resnet_v2(inputs, blocks, num_classes, is_training=is_training,
+	                 global_pool=global_pool, output_stride=output_stride,
+	                 include_root_block=True, spatial_squeeze=spatial_squeeze,
+	                 reuse=reuse, scope=scope)
+
+
+resnet_v2_200.default_image_size = resnet_v2.default_image_size

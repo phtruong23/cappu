@@ -39,7 +39,7 @@ def vgg_partial(inputs,
 			# net = slim.repeat(inputs, 4, slim.conv2d, 512, [3, 3], scope='conv4')
 			# net = slim.max_pool2d(net, [2, 2], scope='pool4')
 			net = slim.repeat(inputs, 4, slim.conv2d, 512, [3, 3], scope='conv5')
-			net = slim.max_pool2d(net, [2, 2], scope='pool5')
+			# net = slim.max_pool2d(net, [2, 2], scope='pool5')
 
 			# # Use conv2d instead of fully_connected layers.
 			# net = slim.conv2d(net, 4096, [7, 7], padding=fc_conv_padding, scope='fc6')

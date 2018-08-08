@@ -7,7 +7,6 @@ import numpy as np
 import os
 import fnmatch
 import tensorflow as tf
-import math
 
 import scipy.io as sio
 from tempfile import TemporaryFile
@@ -129,13 +128,14 @@ class csv_loader(object):
 	             divided_npz_name='divided_dataset.npz',
 	             label_order=None,
 				 batch_size=10,
-				 trans_range=None,
-				 rotate_range=None,
+				 flip_flag=None,
+	             trans_range = None,
+	             rotate_range = None,
 				 max_hue_delta=0.15,
 				 saturation_range=[0.5, 2.0],
 				 max_bright_delta=0.25,
-				 max_contrast_delta=[0.8, 1.2],
-				 process_num = 16,
+				 max_contrast_delta=[0, 0.3],
+	             process_num=8,
 				 is_training=True
 				 ):
 		self.csv_subject_folder_names = csv_subject_folder_names
@@ -172,14 +172,14 @@ class csv_loader(object):
 		self.is_divided_saved = is_divided_saved
 		self.divided_npz_name = divided_npz_name
 
-		self.batch_size = batch_size
+		self.flip_flag = flip_flag
 		self.trans_range = trans_range
 		self.rotate_range = rotate_range
+		self.batch_size = batch_size
 		self.max_hue_delta = max_hue_delta
 		self.saturation_range = saturation_range
 		self.max_bright_delta = max_bright_delta
 		self.max_contrast_delta = max_contrast_delta
-
 		self.process_num = process_num
 		self.is_training = is_training
 
@@ -251,31 +251,25 @@ class csv_loader(object):
 				train_ren = int(cur_range * ratio[0])
 				val_ren = int(cur_range * ratio[1])
 				test_ren = int(cur_range * ratio[2])
-				for i in np.random.permutation(range(int(row['StartFrame']), int(row['EndFrame']))):
-				# for i in range(int(row['StartFrame']), int(row['EndFrame'])):
-				# 	cur_name = ('%s.%s.mp4.%d.jpg' % (row['Subject'], row['Video'].split('.')[0], i))
-				# 	cur_label = {'Grasp': row['Grasp'],
-				# 	             'ADL': row['ADL'],
-				# 	             'OppType': row['OppType'],
-				# 	             'PIP': row['PIP'],
-				# 	             'VirtualFingers': row['VirtualFingers'],
-				# 	             'Thumb': row['Thumb']}
-					cur_info = {'Filename': ('%s.%s.mp4.%d.jpg' % (row['Subject'], row['Video'].split('.')[0], i)),
+				permute_list = np.random.permutation(range(int(row['StartFrame']), int(row['EndFrame'])))
+				for i, number in enumerate(permute_list):
+					cur_info = {'Filename': ('%s.%s.mp4.%d.jpg' % (row['Subject'], row['Video'].split('.')[0], number)),
 					             'Grasp': row['Grasp'],
 					             'ADL': row['ADL'],
 					             'OppType': row['OppType'],
 					             'PIP': row['PIP'],
 					             'VirtualFingers': row['VirtualFingers'],
 					             'Thumb': row['Thumb']}
-					if i >= int(row['StartFrame']) and i < (int(row['StartFrame']) + train_ren):
+					# if i >= int(row['StartFrame']) and i < (int(row['StartFrame']) + train_ren):
+					if i >= 0 and i < train_ren:
 						# train_names.append(cur_name)
 						# train_labels.append(cur_label)
 						train_info.append(cur_info)
-					elif i >= (int(row['StartFrame']) + train_ren) and i < (int(row['StartFrame']) + train_ren + val_ren):
+					elif i >= train_ren and i < train_ren + val_ren:
 						# val_names.append(cur_name)
 						# val_labels.append(cur_label)
 						val_info.append(cur_info)
-					elif i >= (int(row['StartFrame']) + train_ren + val_ren) and i < int(row['EndFrame']):
+					elif i >= train_ren + val_ren and i < len(permute_list):
 						# test_names.append(cur_name)
 						# test_labels.append(cur_label)
 						test_info.append(cur_info)
@@ -366,7 +360,6 @@ class csv_loader(object):
 			print('processing... : %d, %s, %d'% (subject_num, mp4_name, i + 1))
 			save_filename = '%s.%s.%d.jpg' % (self.csv_subject_label_names[subject_num],
 											  mp4_name, i + 1)
-			# imageio.imwrite('%s/%s' % (save_path, save_filename), im)
 			cv2.imwrite('%s/%s' % (save_path, save_filename), im)
 
 	def total_save_from_mp4(self):
@@ -485,16 +478,27 @@ class csv_loader(object):
 		return [grasp_id[0], adl_id[0], opptype_id[0], pip_id[0], virtual_fingers_id[0], thumb_id[0]]
 
 	def rotate_image(self, img, rotate_center, degree):
+
 		rotation_matrix = cv2.getRotationMatrix2D(rotate_center, degree, 1)
 		img_rotated = cv2.warpAffine(img, rotation_matrix, (np.shape(img)[1], np.shape(img)[0]))
 
 		return img_rotated
 
 	def translate_image(self, img, trans_x, trans_y):
+
 		translation_matrix = np.float32([[1, 0, trans_x], [0, 1, trans_y]])
 		img_translated = cv2.warpAffine(img, translation_matrix, (np.shape(img)[1], np.shape(img)[0]))
 
 		return img_translated
+
+	def flip_image(self, img, flag=0):
+		# flag 0 means that horizontal flipping
+		# flag 1 means that vertical flipping
+		# flag -1 means that horizontal&vertical flipping
+		img_flip = cv2.flip(img, flag)
+
+		return img_flip
+
 
 	# This function will be working on the dataset map function
 	def _read_per_image_train(self, num):
@@ -509,7 +513,7 @@ class csv_loader(object):
 
 			label_raw = self.find_label_from_filename(current_image_name)
 
-		else:
+		elif self.divide_by_ratio == True:
 			# filename = self.train_names[temp_num]
 			# label_raw = self.train_labels[temp_num]
 			filename = ('%s/%s/%s' % (self.data_path,
@@ -523,18 +527,22 @@ class csv_loader(object):
 
 		img = np.float32(cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))) / 255.0
 
-		# Translate and rotate images with opencv functions
+		# Flip and translate and rotate images with opencv functions
+		if self.flip_flag is not None:
+			flip_num = np.random.randint(0, 2, 1)
+			if flip_num[0] != 1:
+				img = self.flip_image(img, flip_num[0])
 		if self.rotate_range is not None:
 			degree = np.random.randint(low=self.rotate_range[0], high=self.rotate_range[1], size=1)
 			img = self.rotate_image(img, (int(self.resize_image_size[0]), int(self.resize_image_size[1])), degree[0])
-
 		if self.trans_range is not None:
 			trans_x = np.random.randint(low=self.trans_range[0], high=self.trans_range[1], size=1)
 			trans_y = np.random.randint(low=self.trans_range[0], high=self.trans_range[1], size=1)
 			img = self.translate_image(img, trans_x, trans_y)
 
+
 		# Change BGR order to RGB order
-		img = img[:,:, ::-1]
+		img = img[:,:, [2, 1, 0]]
 
 		return img, label
 
@@ -551,7 +559,7 @@ class csv_loader(object):
 
 			label_raw = self.find_label_from_filename(current_image_name)
 
-		else:
+		elif self.divide_by_ratio == True:
 			# filename = self.val_names[temp_num]
 			# label_raw = self.val_labels[temp_num]
 			filename = ('%s/%s/%s' % (self.data_path,
@@ -565,7 +573,7 @@ class csv_loader(object):
 
 		img = np.float32(cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))) / 255.0
 		# Change BGR order to RGB order
-		img = img[:, :, ::-1]
+		img = img[:, :, [2, 1, 0]]
 
 		return img, label
 
@@ -582,7 +590,7 @@ class csv_loader(object):
 
 			label_raw = self.find_label_from_filename(current_image_name)
 
-		else:
+		elif self.divide_by_ratio == True:
 			# filename = self.test_names[temp_num]
 			# label_raw = self.test_labels[temp_num]
 			filename = ('%s/%s/%s' % (self.data_path,
@@ -597,13 +605,25 @@ class csv_loader(object):
 
 		img = np.float32(cv2.resize(cv2.imread(filename), tuple(self.resize_image_size))) / 255.0
 		# Change BGR order to RGB order
-		img = img[:, :, ::-1]
+		img = img[:, :, [2, 1, 0]]
 
 		return img, label
 
 
 
 	def _adjust_tf_image_function(self, image, label):
+
+		# if self.trans_range is not None:
+		# 	temp_dx = tf.reshape(
+		# 		tf.random_shuffle(tf.linspace(self.trans_range[0], self.trans_range[1], self.batch_size)),
+		# 		shape=[self.batch_size, 1])
+		# 	temp_dy = tf.reshape(
+		# 		tf.random_shuffle(tf.linspace(self.trans_range[0], self.trans_range[1], self.batch_size)),
+		# 		shape = [self.batch_size, 1])
+		# 	image = tf.contrib.image.translate(image, translations=tf.concat([temp_dx, temp_dy], axis=1))
+		# if self.rotate_range is not None:
+		# 	temp_angles = tf.random_shuffle(tf.linspace(self.rotate_range[0], self.rotate_range[1], self.batch_size))
+		# 	image = tf.contrib.image.rotate(image, angles=temp_angles)
 
 		if self.max_hue_delta is not None:
 			# random hue
@@ -631,15 +651,14 @@ class csv_loader(object):
 		with tf.name_scope('train_dataset'):
 			if self.divide_by_ratio == False:
 				train_size = len(self.train_meaningful_jpg_names)
-			else:
+			elif self.divide_by_ratio == True:
 				train_size = len(self.train_info)
 			train_order = tf.random_shuffle(tf.linspace(0.0, (float(train_size) - 1.0), train_size))
 
 			train_set = tf.data.Dataset.from_tensor_slices(train_order)
 			train_set = train_set.map(lambda num: tuple(
-				tf.py_func(self._read_per_image_train, [num], [tf.float32, tf.int64])),
-									  num_parallel_calls=self.process_num)
-			# train_set = train_set.map(self._adjust_tf_image_function, num_parallel_calls=self.process_num)
+				tf.py_func(self._read_per_image_train, [num], [tf.float32, tf.int64])), num_parallel_calls=self.process_num)
+			train_set = train_set.map(self._adjust_tf_image_function, num_parallel_calls=self.process_num)
 
 			train_set = train_set.batch(self.batch_size)
 			# train_set = train_set.apply(tf.contrib.data.batch_and_drop_remainder(self.batch_size))
@@ -647,15 +666,14 @@ class csv_loader(object):
 		with tf.name_scope('validation_dataset'):
 			if self.divide_by_ratio == False:
 				val_size = len(self.val_meaningful_jpg_names)
-			else:
+			elif self.divide_by_ratio == True:
 				val_size = len(self.val_info)
 			## Validation set don't need shuffle.
 			val_order = tf.linspace(0.0, (float(val_size) - 1.0), val_size)
 
 			val_set = tf.data.Dataset.from_tensor_slices(val_order)
 			val_set = val_set.map(lambda num: tuple(
-				tf.py_func(self._read_per_image_val, [num], [tf.float32, tf.int64])),
-								  num_parallel_calls=self.process_num)
+				tf.py_func(self._read_per_image_val, [num], [tf.float32, tf.int64])), num_parallel_calls=self.process_num)
 
 			val_set = val_set.batch(self.batch_size)
 			# val_set = val_set.apply(tf.contrib.data.batch_and_drop_remainder(self.batch_size))
@@ -663,21 +681,30 @@ class csv_loader(object):
 		with tf.name_scope('test_dataset'):
 			if self.divide_by_ratio == False:
 				test_size = len(self.test_meaningful_jpg_names)
-			else:
+			elif self.divide_by_ratio == True:
 				test_size = len(self.test_info)
 			## Test set don't need shuffle.
 			test_order = tf.linspace(0.0, (float(test_size) - 1.0), test_size)
 
 			test_set = tf.data.Dataset.from_tensor_slices(test_order)
 			test_set = test_set.map(lambda num: tuple(
-				tf.py_func(self._read_per_image_test, [num], [tf.float32, tf.int64])),
-									num_parallel_calls=self.process_num)
+				tf.py_func(self._read_per_image_test, [num], [tf.float32, tf.int64])), num_parallel_calls=self.process_num)
 
 			test_set = test_set.batch(self.batch_size)
 			# test_set = test_set.apply(tf.contrib.data.batch_and_drop_remainder(self.batch_size))
 
 		with tf.name_scope('dataset_initializer'):
 			# iterator = tf.data.Iterator.from_structure(train_set.output_types, train_set.output_shapes)
+			# iterator = tf.data.Iterator.from_structure(train_set.output_types,
+			#                                            (tf.TensorShape([self.batch_size,
+			#                                                             self.resize_image_size[0],
+			#                                                             self.resize_image_size[1],
+			#                                                             3]),
+			#                                             tf.TensorShape([self.batch_size,
+			#                                                             len(self.classes_numbers)])
+			#                                             )
+			#                                            )
+
 			iterator = tf.data.Iterator.from_structure(train_set.output_types,
 			                                           (tf.TensorShape([None,
 			                                                            self.resize_image_size[0],
@@ -695,3 +722,7 @@ class csv_loader(object):
 			test_init_op = iterator.make_initializer(test_set, name='test_set_initializer')
 
 		return next_element, training_init_op, validation_init_op, test_init_op
+
+
+
+
