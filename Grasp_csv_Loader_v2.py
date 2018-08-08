@@ -251,31 +251,25 @@ class csv_loader(object):
 				train_ren = int(cur_range * ratio[0])
 				val_ren = int(cur_range * ratio[1])
 				test_ren = int(cur_range * ratio[2])
-				for i in np.random.permutation(range(int(row['StartFrame']), int(row['EndFrame']))):
-				# for i in range(int(row['StartFrame']), int(row['EndFrame'])):
-				# 	cur_name = ('%s.%s.mp4.%d.jpg' % (row['Subject'], row['Video'].split('.')[0], i))
-				# 	cur_label = {'Grasp': row['Grasp'],
-				# 	             'ADL': row['ADL'],
-				# 	             'OppType': row['OppType'],
-				# 	             'PIP': row['PIP'],
-				# 	             'VirtualFingers': row['VirtualFingers'],
-				# 	             'Thumb': row['Thumb']}
-					cur_info = {'Filename': ('%s.%s.mp4.%d.jpg' % (row['Subject'], row['Video'].split('.')[0], i)),
+				permute_list = np.random.permutation(range(int(row['StartFrame']), int(row['EndFrame'])))
+				for i, number in enumerate(permute_list):
+					cur_info = {'Filename': ('%s.%s.mp4.%d.jpg' % (row['Subject'], row['Video'].split('.')[0], number)),
 					             'Grasp': row['Grasp'],
 					             'ADL': row['ADL'],
 					             'OppType': row['OppType'],
 					             'PIP': row['PIP'],
 					             'VirtualFingers': row['VirtualFingers'],
 					             'Thumb': row['Thumb']}
-					if i >= int(row['StartFrame']) and i < (int(row['StartFrame']) + train_ren):
+					# if i >= int(row['StartFrame']) and i < (int(row['StartFrame']) + train_ren):
+					if i >= 0 and i < train_ren:
 						# train_names.append(cur_name)
 						# train_labels.append(cur_label)
 						train_info.append(cur_info)
-					elif i >= (int(row['StartFrame']) + train_ren) and i < (int(row['StartFrame']) + train_ren + val_ren):
+					elif i >= train_ren and i < train_ren + val_ren:
 						# val_names.append(cur_name)
 						# val_labels.append(cur_label)
 						val_info.append(cur_info)
-					elif i >= (int(row['StartFrame']) + train_ren + val_ren) and i < int(row['EndFrame']):
+					elif i >= train_ren + val_ren and i < len(permute_list):
 						# test_names.append(cur_name)
 						# test_labels.append(cur_label)
 						test_info.append(cur_info)

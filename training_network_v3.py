@@ -139,7 +139,7 @@ def train():
 							# 	true_labels: labels[:,int(-args.layer):],
 							model.resnet_training_flag: False,
 							model.vgg19_training_flag: True,
-							model.vgg_dropout: 0.5})
+							model.vgg_dropout: 1.0})
 					# print(len(update['all_inputs']), len(update['all_outputs']))
 					print('losses:', update['losses'], 'accuracy (top1, top3):', update['eval_update']['Accuracy_top1'], update['eval_update']['Accuracy_top3'])
 					# print('losses:', update['losses'])

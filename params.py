@@ -62,4 +62,4 @@ class PARAMS(object):
 	# optimizer = 'rmsprop'
 
 	thread = 8
-	gpu_num = '2'
+	gpu_num = '1'
