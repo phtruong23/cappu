@@ -144,23 +144,23 @@ def resnet_v2(inputs,
 				# normalization or activation functions in the residual unit output. See
 				# Appendix of [2].
 				net = slim.batch_norm(net, activation_fn=tf.nn.relu, scope='postnorm')
-
+				#
 				# Convert end_points_collection into a dictionary of end_points.
 				end_points = slim.utils.convert_collection_to_dict(
 					end_points_collection)
 
-				# if global_pool:
-				# 	# Global average pooling.
-				# 	net = tf.reduce_mean(net, [1, 2], name='pool5', keep_dims=True)
-				# 	end_points['global_pool'] = net
-				# if num_classes:
-				# 	net = slim.conv2d(net, num_classes, [1, 1], activation_fn=None,
-				# 	                  normalizer_fn=None, scope='logits')
-				# 	end_points[sc.name + '/logits'] = net
-				# 	if spatial_squeeze:
-				# 		net = tf.squeeze(net, [1, 2], name='SpatialSqueeze')
-				# 		end_points[sc.name + '/spatial_squeeze'] = net
-				# 	end_points['predictions'] = slim.softmax(net, scope='predictions')
+				if global_pool:
+					# Global average pooling.
+					net = tf.reduce_mean(net, [1, 2], name='pool5', keep_dims=True)
+					end_points['global_pool'] = net
+				if num_classes:
+					net = slim.conv2d(net, num_classes, [1, 1], activation_fn=None,
+					                  normalizer_fn=None, scope='logits')
+					end_points[sc.name + '/logits'] = net
+					if spatial_squeeze:
+						net = tf.squeeze(net, [1, 2], name='SpatialSqueeze')
+						end_points[sc.name + '/spatial_squeeze'] = net
+					end_points['predictions'] = slim.softmax(net, scope='predictions')
 
 				return net, mid_net
 
